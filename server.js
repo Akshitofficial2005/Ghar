@@ -7,7 +7,13 @@ const app = express();
 const PORT = 5001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://gharfr.vercel.app',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 app.use(bodyParser.json());
 
 // Mount auth routes

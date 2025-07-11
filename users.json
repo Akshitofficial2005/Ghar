@@ -1,0 +1,38 @@
+[
+  {
+    "id": "demo-admin",
+    "name": "Admin User",
+    "email": "admin@gharapp.com",
+    "password": "$2a$10$6Uh0Rkwpr5jNZo944Cjeuepv9pUl1tP4RhQeVUEmV0KsQK8LOxFAi",
+    "phone": "",
+    "role": "admin",
+    "createdAt": "2025-07-10T13:31:18.938Z"
+  },
+  {
+    "id": "demo-owner",
+    "name": "PG Owner",
+    "email": "owner@gharapp.com",
+    "password": "$2a$10$ThjOx6NvEvpfBU3otPwRKem.c1JDIJjORWmbDZjswxb8ORtXd/pzm",
+    "phone": "",
+    "role": "owner",
+    "createdAt": "2025-07-10T13:31:19.015Z"
+  },
+  {
+    "id": "demo-user",
+    "name": "Demo User",
+    "email": "user@demo.com",
+    "password": "$2a$10$mIpitrWop9psVGkgDjZobO7zolZoOVZkQ49ZBVbNjTnjvAidNfuuK",
+    "phone": "",
+    "role": "user",
+    "createdAt": "2025-07-10T13:31:19.082Z"
+  },
+  {
+    "id": "1752154404904",
+    "name": "Akshit Agrawal",
+    "email": "agrawalakshit36@gmail.com",
+    "password": "$2a$10$sd7RxPZgNOEs9t4kaO52aukNC/RG40eiyw0ReXSvQpW3Vf4X..nQC",
+    "phone": "9907002817",
+    "role": "user",
+    "createdAt": "2025-07-10T13:33:24.904Z"
+  }
+]

@@ -1,0 +1,28 @@
+{
+  "name": "ghar-backend-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "jest --detectOpenHandles",
+    "test:watch": "jest --watch --detectOpenHandles",
+    "test:coverage": "jest --coverage --detectOpenHandles",
+    "test:integration": "jest --testPathPattern=integration --detectOpenHandles",
+    "test:unit": "jest --testPathPattern=unit --detectOpenHandles"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js",
+      "**/tests/**/*.spec.js"
+    ],
+    "collectCoverageFrom": [
+      "routes/**/*.js",
+      "models/**/*.js",
+      "middleware/**/*.js",
+      "services/**/*.js",
+      "!**/node_modules/**"
+    ],
+    "coverageReporters": ["text", "lcov", "html"],
+    "testTimeout": 30000
+  }
+}

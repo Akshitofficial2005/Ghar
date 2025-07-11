@@ -1,0 +1,9 @@
+export declare const generateRandomString: (length?: number) => string;
+export declare const generateBookingId: () => string;
+export declare const formatCurrency: (amount: number, currency?: string) => string;
+export declare const formatDate: (date: Date) => string;
+export declare const calculateDaysBetween: (startDate: Date, endDate: Date) => number;
+export declare const isValidObjectId: (id: string) => boolean;
+export declare const sanitizeString: (str: string) => string;
+export declare const generateSlug: (text: string) => string;
+//# sourceMappingURL=helpers.d.ts.map

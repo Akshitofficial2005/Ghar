@@ -1,0 +1,161 @@
+const express = require('express');
+const PG = require('../models/PG');
+const auth = require('../middleware/auth');
+const router = express.Router();
+
+// Get all PGs with filters
+router.get('/', async (req, res) => {
+  try {
+    const {
+      city,
+      minPrice,
+      maxPrice,
+      wifi,
+      food,
+      parking,
+      page = 1,
+      limit = 12,
+      search
+    } = req.query;
+
+    const filter = {
+      isApproved: true,
+      isActive: true
+    };
+
+    if (city) {
+      filter['location.city'] = new RegExp(city, 'i');
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: new RegExp(search, 'i') },
+        { description: new RegExp(search, 'i') },
+        { 'location.address': new RegExp(search, 'i') }
+      ];
+    }
+
+    if (minPrice || maxPrice) {
+      const priceFilter = {};
+      if (minPrice) priceFilter.$gte = parseInt(minPrice);
+      if (maxPrice) priceFilter.$lte = parseInt(maxPrice);
+      filter['roomTypes.price'] = priceFilter;
+    }
+
+    if (wifi === 'true') filter['amenities.wifi'] = true;
+    if (food === 'true') filter['amenities.food'] = true;
+    if (parking === 'true') filter['amenities.parking'] = true;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const pgs = await PG.find(filter)
+      .populate('owner', 'name phone email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await PG.countDocuments(filter);
+
+    res.json({
+      pgs,
+      pagination: {
+        current: pageNum,
+        pages: Math.ceil(total / limitNum),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('Get PGs error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get single PG
+router.get('/:id', async (req, res) => {
+  try {
+    const pg = await PG.findById(req.params.id)
+      .populate('owner', 'name phone email');
+    
+    if (!pg) {
+      return res.status(404).json({ message: 'PG not found' });
+    }
+
+    res.json({ pg });
+  } catch (error) {
+    console.error('Get PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create PG (Owner only)
+router.post('/', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const pgData = {
+      ...req.body,
+      owner: req.user.userId
+    };
+
+    const pg = new PG(pgData);
+    await pg.save();
+
+    res.status(201).json({ message: 'PG created successfully', pg });
+  } catch (error) {
+    console.error('Create PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update PG
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const pg = await PG.findById(req.params.id);
+    
+    if (!pg) {
+      return res.status(404).json({ message: 'PG not found' });
+    }
+
+    if (pg.owner.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const updatedPG = await PG.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    res.json({ message: 'PG updated successfully', pg: updatedPG });
+  } catch (error) {
+    console.error('Update PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete PG
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const pg = await PG.findById(req.params.id);
+    
+    if (!pg) {
+      return res.status(404).json({ message: 'PG not found' });
+    }
+
+    if (pg.owner.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await PG.findByIdAndDelete(req.params.id);
+    res.json({ message: 'PG deleted successfully' });
+  } catch (error) {
+    console.error('Delete PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;

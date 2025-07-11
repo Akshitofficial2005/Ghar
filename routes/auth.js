@@ -11,7 +11,7 @@ const router = express.Router();
 const createEmailTransporter = () => {
   // Check for Gmail configuration first
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,

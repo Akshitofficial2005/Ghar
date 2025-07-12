@@ -2,8 +2,8 @@
   {
     "id": "demo-admin",
     "name": "Admin User",
-    "email": "admin@gharapp.com",
-    "password": "$2a$10$6Uh0Rkwpr5jNZo944Cjeuepv9pUl1tP4RhQeVUEmV0KsQK8LOxFAi",
+    "email": "env:ADMIN_EMAIL",
+    "password": "env:ADMIN_PASSWORD",
     "phone": "",
     "role": "admin",
     "createdAt": "2025-07-10T13:31:18.938Z"

@@ -24,12 +24,12 @@ const seedInitialData = async () => {
   try {
     const User = require('../models/User');
 
-    const adminExists = await User.findOne({ email: 'admin@gharapp.com' });
+    const adminExists = await User.findOne({ email: process.env.ADMIN_EMAIL });
     if (!adminExists) {
       const admin = new User({
         name: 'Admin',
-        email: 'admin@gharapp.com',
-        password: 'admin123',
+        email: process.env.ADMIN_EMAIL,
+        password: process.env.ADMIN_PASSWORD,
         phone: '9907002817',
         role: 'admin',
         isVerified: true

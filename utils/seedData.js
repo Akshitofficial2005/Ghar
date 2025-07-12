@@ -17,8 +17,8 @@ const seedData = async () => {
     // Create admin user
     const adminUser = new User({
       name: 'Admin User',
-      email: 'admin@gharapp.com',
-      password: 'admin123',
+      email: process.env.ADMIN_EMAIL,
+      password: process.env.ADMIN_PASSWORD,
       phone: '9907002817',
       role: 'admin'
     });

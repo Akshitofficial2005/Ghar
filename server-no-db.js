@@ -272,14 +272,14 @@ const loadUsers = () => {
 // Add demo accounts with pre-hashed passwords
 const initializeDemoAccounts = async () => {
   // Check if demo accounts already exist
-  const hasAdmin = users.find(u => u.email === 'admin@gharapp.com');
+  const hasAdmin = users.find(u => u.email === process.env.ADMIN_EMAIL);
   if (hasAdmin) {
     console.log('Demo accounts already exist');
     return;
   }
 
   const demoAccounts = [
-    { name: 'Admin User', email: 'admin@gharapp.com', password: 'admin123', role: 'admin' },
+    { name: 'Admin User', email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD, role: 'admin' },
     { name: 'PG Owner', email: 'owner@gharapp.com', password: 'owner123', role: 'owner' },
     { name: 'Demo User', email: 'user@demo.com', password: 'demo123', role: 'user' }
   ];

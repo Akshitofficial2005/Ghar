@@ -411,4 +411,57 @@ router.post('/refresh-token', authMiddleware, async (req, res) => {
   }
 });
 
+// Emergency login test - simple endpoint without middleware
+router.post('/emergency-login', async (req, res) => {
+  try {
+    console.log('Emergency login attempt:', req.body);
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password required' });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.log('Emergency login - User not found:', email);
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.log('Emergency login - Password mismatch for:', email);
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    console.log('Emergency login - User found:', user.email, user.role);
+
+    // Generate JWT with fallback secret
+    const jwtSecret = process.env.JWT_SECRET || 'emergency_fallback_secret_2024';
+    const token = jwt.sign(
+      { userId: user._id },
+      jwtSecret,
+      { expiresIn: '7d' }
+    );
+
+    console.log('Emergency login - Token generated successfully');
+
+    res.json({
+      message: 'Emergency login successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Emergency login error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;

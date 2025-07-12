@@ -62,6 +62,20 @@ app.get('/api/wake-up', (req, res) => {
   });
 });
 
+// Emergency auth test endpoint - no middleware required
+app.get('/api/emergency-test', (req, res) => {
+  res.json({ 
+    status: 'Server is working',
+    timestamp: new Date().toISOString(),
+    environment: {
+      nodeEnv: process.env.NODE_ENV,
+      jwtSecretExists: !!process.env.JWT_SECRET,
+      mongoUriExists: !!process.env.MONGODB_URI,
+      port: process.env.PORT || 5001
+    }
+  });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);

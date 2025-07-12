@@ -37,37 +37,16 @@ router.get('/dashboard', async (req, res) => {
 // --- PG MANAGEMENT ---
 router.get('/pgs', async (req, res) => {
     try {
-        const { status, page = 1, limit = 10 } = req.query;
-        
-        let filter = {};
-        if (status === 'pending') {
-            filter = { isApproved: false };
-        } else if (status === 'approved') {
-            filter = { isApproved: true };
-        }
-        
-        const pgs = await PG.find(filter)
-            .populate('owner', 'name email phone')
-            .sort({ createdAt: -1 });
-            
+        const pgs = await PG.find().populate('owner', 'name email');
         res.json({ pgs, total: pgs.length });
     } catch (error) {
-        console.error('Admin get PGs error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
 router.put('/pgs/:id/approve', async (req, res) => {
     try {
-        const pg = await PG.findByIdAndUpdate(
-            req.params.id, 
-            { 
-                status: 'approved', 
-                isApproved: true,
-                isActive: true  // Also set isActive to true so it shows on homepage
-            }, 
-            { new: true }
-        );
+        const pg = await PG.findByIdAndUpdate(req.params.id, { status: 'approved', isApproved: true }, { new: true });
         if (!pg) return res.status(404).json({ message: 'PG not found' });
         res.json(pg);
     } catch (error) {

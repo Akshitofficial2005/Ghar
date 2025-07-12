@@ -64,11 +64,6 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   lastLogin: Date,
-  activeTokens: [{
-    token: String,
-    createdAt: { type: Date, default: Date.now },
-    expiresAt: Date
-  }],
   preferences: {
     notifications: {
       email: { type: Boolean, default: true },
@@ -97,12 +92,5 @@ userSchema.index({ email: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ googleId: 1 });
-userSchema.index({ 'activeTokens.expiresAt': 1 });
-
-// Clean expired tokens
-userSchema.methods.cleanExpiredTokens = function() {
-  this.activeTokens = this.activeTokens.filter(tokenObj => tokenObj.expiresAt > new Date());
-  return this.save();
-};
 
 module.exports = mongoose.model('User', userSchema);

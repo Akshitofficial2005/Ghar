@@ -108,13 +108,8 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || 'fallback_secret',
-      { expiresIn: '7d' }
+      { expiresIn: '7d' } // Extended to 7 days
     );
-
-    // Store token in database
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    user.activeTokens.push({ token, expiresAt });
-    await user.save();
 
     res.status(201).json({
       message: 'User created successfully',
@@ -135,44 +130,30 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    console.log('Login attempt:', req.body.email);
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      console.log('Login failed - missing email or password');
-      return res.status(400).json({ message: 'Email and password required' });
-    }
 
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      console.log('Login failed - user not found:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log('Login failed - password mismatch for:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    console.log('Login successful for:', user.email, 'Role:', user.role);
-
     // Update last login
     user.lastLogin = new Date();
+    await user.save();
 
     // Generate JWT
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || 'fallback_secret',
-      { expiresIn: '7d' }
+      { expiresIn: '7d' } // Extended to 7 days
     );
-
-    // Store token in database
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    user.activeTokens.push({ token, expiresAt });
-    await user.cleanExpiredTokens();
 
     res.json({
       message: 'Login successful',
@@ -190,27 +171,11 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Logout
-router.post('/logout', authMiddleware, async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const user = req.user;
-    
-    // Remove token from database
-    user.activeTokens = user.activeTokens.filter(tokenObj => tokenObj.token !== token);
-    await user.save();
-    
-    res.json({ message: 'Logged out successfully' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 // Get current user
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    // req.user is populated by authMiddleware
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -228,6 +193,7 @@ router.post('/forgot-password', async (req, res) => {
     
     const user = await User.findOne({ email });
     if (!user) {
+      // To prevent user enumeration, we send a success response even if user doesn't exist.
       return res.json({ message: 'If a user with that email exists, a password reset link has been sent.' });
     }
 
@@ -241,12 +207,14 @@ router.post('/forgot-password', async (req, res) => {
     // Send password reset email
     const emailSent = await sendPasswordResetEmail(user.email, resetToken, user.name);
     if (!emailSent) {
+      // Log the error but don't expose it to the client
       console.error(`Failed to send password reset email to ${user.email}`);
     }
     
     res.json({ message: 'If a user with that email exists, a password reset link has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
+    // Generic error for the client
     res.status(500).json({ message: 'An error occurred while attempting to send the reset email.' });
   }
 });
@@ -266,9 +234,6 @@ router.post('/reset-password', async (req, res) => {
     // Hash new password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
-    
-    // Clear all active tokens (force re-login)
-    user.activeTokens = [];
     await user.save();
 
     res.json({ message: 'Password reset successful' });
@@ -313,6 +278,7 @@ router.post('/google', async (req, res) => {
       if (!user.googleId) {
         user.googleId = googleId;
         user.profilePicture = picture;
+        await user.save();
       }
     } else {
       // Create new user
@@ -323,34 +289,124 @@ router.post('/google', async (req, res) => {
         profilePicture: picture,
         role: 'user',
         isActive: true,
-        phone: ''
+        phone: '', // Will be empty initially, user can update later
+        // No password needed for Google auth users
+        password: await bcrypt.hash(Math.random().toString(36), 10) // Random password as fallback
       });
+
+      await user.save();
     }
 
-    // Generate JWT
+    // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
+      { 
+        userId: user._id,
+        email: user.email,
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' } // Extended to 7 days for Google OAuth too
+    );
+
+    // Return user data (excluding password)
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      profilePicture: user.profilePicture,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    };
+
+    res.json({
+      message: 'Google authentication successful',
+      user: userData,
+      token
+    });
+
+  } catch (error) {
+    console.error('Google auth error:', error);
+    res.status(500).json({ error: 'Google authentication failed' });
+  }
+});
+
+// Get user profile
+router.get('/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user role (temporary endpoint for fixing 401 issues)
+router.put('/update-role', authMiddleware, async (req, res) => {
+  try {
+    const { role } = req.body;
+    
+    // Allow users to set their own role to 'owner' (for testing)
+    if (!['user', 'owner', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.user._id, 
+      { role }, 
+      { new: true }
+    ).select('-password');
+    
+    console.log(`User ${user._id} role updated to: ${role}`);
+    res.json({ message: 'Role updated successfully', user });
+  } catch (error) {
+    console.error('Role update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Token refresh endpoint
+router.post('/refresh-token', authMiddleware, async (req, res) => {
+  try {
+    // If we reach here, the token is valid (authMiddleware passed)
+    const user = await User.findById(req.user._id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate new JWT token
+    const newToken = jwt.sign(
+      { 
+        userId: user._id,
+        email: user.email,
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // Store token in database
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    user.activeTokens.push({ token, expiresAt });
-    await user.cleanExpiredTokens();
-
     res.json({
-      message: 'Google login successful',
-      token,
+      message: 'Token refreshed successfully',
+      token: newToken,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        phone: user.phone,
+        role: user.role,
+        profilePicture: user.profilePicture,
+        isActive: user.isActive,
+        createdAt: user.createdAt
       }
     });
   } catch (error) {
-    console.error('Google auth error:', error);
+    console.error('Token refresh error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

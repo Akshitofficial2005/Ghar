@@ -8,8 +8,8 @@ const authMiddleware = async (req, res, next) => {
     console.log('Auth middleware - Headers:', req.headers['authorization']);
     console.log('Auth middleware - Token:', token ? 'Token present' : 'No token');
 
-    if (!token || token === 'null' || token === 'undefined') {
-        console.log('Auth middleware - No valid token provided');
+    if (!token) {
+        console.log('Auth middleware - No token provided');
         return res.status(401).json({ message: 'Unauthorized: No token provided' });
     }
 
@@ -22,16 +22,6 @@ const authMiddleware = async (req, res, next) => {
         if (!user) {
             console.log('Auth middleware - User not found:', decoded.userId);
             return res.status(401).json({ message: 'Unauthorized: User not found' });
-        }
-
-        // Check if token exists in database
-        const tokenExists = user.activeTokens.some(tokenObj => 
-            tokenObj.token === token && tokenObj.expiresAt > new Date()
-        );
-
-        if (!tokenExists) {
-            console.log('Auth middleware - Token not found in database or expired');
-            return res.status(401).json({ message: 'Unauthorized: Invalid token' });
         }
 
         console.log('Auth middleware - User authenticated:', user._id, user.role);

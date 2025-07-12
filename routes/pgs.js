@@ -98,7 +98,9 @@ router.post('/', auth, async (req, res) => {
 
     const pgData = {
       ...req.body,
-      owner: req.user.userId
+      owner: req.user.userId,
+      isApproved: false,  // All new listings start as pending
+      isActive: false     // Inactive until approved
     };
 
     const pg = new PG(pgData);
@@ -154,6 +156,40 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ message: 'PG deleted successfully' });
   } catch (error) {
     console.error('Delete PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get owner's PGs (including pending)
+router.get('/owner/my-pgs', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const pgs = await PG.find({ owner: req.user.userId })
+      .sort({ createdAt: -1 });
+
+    res.json({ 
+      success: true,
+      pgs: pgs.map(pg => ({
+        id: pg._id,
+        name: pg.name,
+        description: pg.description,
+        location: `${pg.location.address}, ${pg.location.city}, ${pg.location.state}`,
+        images: pg.images.map(img => img.url || img),
+        status: pg.isApproved ? (pg.isActive ? 'active' : 'inactive') : 'pending',
+        price: pg.roomTypes.length > 0 ? pg.roomTypes[0].price : 0,
+        totalRooms: pg.roomTypes.reduce((sum, room) => sum + room.totalRooms, 0),
+        occupiedRooms: pg.roomTypes.reduce((sum, room) => sum + (room.totalRooms - room.availableRooms), 0),
+        rating: pg.rating.overall,
+        createdAt: pg.createdAt,
+        monthlyRevenue: pg.roomTypes.reduce((sum, room) => sum + ((room.totalRooms - room.availableRooms) * room.price), 0),
+        inquiries: pg.viewCount || 0
+      }))
+    });
+  } catch (error) {
+    console.error('Get owner PGs error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

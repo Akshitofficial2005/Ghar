@@ -193,52 +193,65 @@ const mockPGs = [
   {
     id: 'pg-1',
     name: 'Sunrise PG',
-    location: 'Indore, MP',
+    description: 'A comfortable PG for working professionals',
+    location: {
+      address: '123 MG Road',
+      city: 'Indore',
+      state: 'Madhya Pradesh',
+      pincode: '452001'
+    },
+    roomTypes: [
+      { type: 'single', price: 12000, deposit: 6000, totalRooms: 10, availableRooms: 7 }
+    ],
+    amenities: { wifi: true, food: true, parking: true },
+    images: [{ url: 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=400', isMain: true }],
+    owner: 'demo-owner',
+    isApproved: false,
+    isActive: false,
     status: 'pending',
-    price: 12000,
-    images: ['https://via.placeholder.com/400x300'],
-    owner: 'John Doe',
     createdAt: '2024-01-20T10:30:00Z'
   },
   {
     id: 'pg-2', 
     name: 'Comfort Villa',
-    location: 'Mumbai, MH',
+    description: 'Modern accommodation in prime location',
+    location: {
+      address: '456 Linking Road',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400050'
+    },
+    roomTypes: [
+      { type: 'double', price: 15000, deposit: 7500, totalRooms: 8, availableRooms: 5 }
+    ],
+    amenities: { wifi: true, food: true, parking: false, ac: true },
+    images: [{ url: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400', isMain: true }],
+    owner: 'demo-owner',
+    isApproved: true,
+    isActive: true,
     status: 'approved',
-    price: 15000,
-    images: ['https://via.placeholder.com/400x300'],
-    owner: 'Sarah Johnson',
     createdAt: '2024-01-18T09:15:00Z'
   },
   {
     id: 'pg-3',
     name: 'Student Hub',
-    location: 'Delhi, DL',
+    description: 'Budget-friendly accommodation for students',
+    location: {
+      address: '789 College Street',
+      city: 'Delhi',
+      state: 'Delhi',
+      pincode: '110001'
+    },
+    roomTypes: [
+      { type: 'triple', price: 8000, deposit: 4000, totalRooms: 15, availableRooms: 12 }
+    ],
+    amenities: { wifi: true, food: false, parking: true },
+    images: [{ url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400', isMain: true }],
+    owner: 'demo-owner',
+    isApproved: false,
+    isActive: false,
     status: 'pending',
-    price: 8000,
-    images: ['https://via.placeholder.com/400x300'],
-    owner: 'Mike Wilson',
     createdAt: '2024-01-19T16:45:00Z'
-  },
-  {
-    id: 'pg-4',
-    name: 'City Center PG',
-    location: 'Pune, MH',
-    status: 'approved',
-    price: 18000,
-    images: ['https://via.placeholder.com/400x300'],
-    owner: 'Alex Kumar',
-    createdAt: '2024-01-17T14:20:00Z'
-  },
-  {
-    id: 'pg-5',
-    name: 'Green Valley PG',
-    location: 'Bangalore, KA',
-    status: 'rejected',
-    price: 14000,
-    images: ['https://via.placeholder.com/400x300'],
-    owner: 'Rahul Sharma',
-    createdAt: '2024-01-16T11:00:00Z'
   }
 ];
 
@@ -641,6 +654,8 @@ app.put('/api/admin/pgs/:id/approve', (req, res) => {
   // Find the PG and update its status
   const pgIndex = mockPGs.findIndex(pg => pg.id === id);
   if (pgIndex !== -1) {
+    mockPGs[pgIndex].isApproved = true;
+    mockPGs[pgIndex].isActive = true;
     mockPGs[pgIndex].status = 'approved';
     mockPGs[pgIndex].approvedAt = new Date().toISOString();
   }
@@ -656,6 +671,8 @@ app.put('/api/admin/pgs/:id/reject', (req, res) => {
   // Find the PG and update its status
   const pgIndex = mockPGs.findIndex(pg => pg.id === id);
   if (pgIndex !== -1) {
+    mockPGs[pgIndex].isApproved = false;
+    mockPGs[pgIndex].isActive = false;
     mockPGs[pgIndex].status = 'rejected';
     mockPGs[pgIndex].rejectionReason = reason;
     mockPGs[pgIndex].rejectedAt = new Date().toISOString();
@@ -873,6 +890,128 @@ app.put('/api/admin/system/alerts/:id/resolve', (req, res) => {
   const { id } = req.params;
   console.log(`Resolving alert: ${id}`);
   res.json({ success: true, message: 'Alert resolved successfully' });
+});
+
+// ====================================
+// AUTH MIDDLEWARE
+// ====================================
+
+const authMiddleware = (req, res, next) => {
+  try {
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+    
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    req.user = decoded;
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Token is not valid' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token has expired' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ====================================
+// PG MANAGEMENT ENDPOINTS
+// ====================================
+
+// Create PG (Owner only)
+app.post('/api/pgs', authMiddleware, async (req, res) => {
+  try {
+    const { role } = req.user;
+    
+    if (role !== 'owner' && role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const pgData = {
+      id: `pg-${Date.now()}`,
+      ...req.body,
+      owner: req.user.userId,
+      isApproved: false,  // All new listings start as pending
+      isActive: false,    // Inactive until approved
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    mockPGs.push(pgData);
+    
+    res.status(201).json({ 
+      message: 'PG created successfully', 
+      pg: pgData 
+    });
+  } catch (error) {
+    console.error('Create PG error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get owner's PGs (including pending)
+app.get('/api/pgs/owner/my-pgs', authMiddleware, async (req, res) => {
+  try {
+    const { role, userId } = req.user;
+    
+    if (role !== 'owner' && role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const ownerPGs = mockPGs.filter(pg => pg.owner === userId);
+    
+    res.json({ 
+      success: true,
+      pgs: ownerPGs.map(pg => ({
+        id: pg.id,
+        name: pg.name,
+        description: pg.description,
+        location: `${pg.location.address}, ${pg.location.city}, ${pg.location.state}`,
+        images: pg.images.map(img => img.url || img),
+        status: pg.isApproved ? (pg.isActive ? 'active' : 'inactive') : 'pending',
+        price: pg.roomTypes.length > 0 ? pg.roomTypes[0].price : 0,
+        totalRooms: pg.roomTypes.reduce((sum, room) => sum + room.totalRooms, 0),
+        occupiedRooms: pg.roomTypes.reduce((sum, room) => sum + (room.totalRooms - room.availableRooms), 0),
+        rating: 4.5,
+        createdAt: pg.createdAt,
+        monthlyRevenue: pg.roomTypes.reduce((sum, room) => sum + ((room.totalRooms - room.availableRooms) * room.price), 0),
+        inquiries: Math.floor(Math.random() * 20)
+      }))
+    });
+  } catch (error) {
+    console.error('Get owner PGs error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get all approved PGs (public)
+app.get('/api/pgs', (req, res) => {
+  try {
+    const approvedPGs = mockPGs.filter(pg => pg.isApproved && pg.isActive);
+    
+    res.json({
+      pgs: approvedPGs,
+      pagination: {
+        current: 1,
+        pages: 1,
+        total: approvedPGs.length
+      }
+    });
+  } catch (error) {
+    console.error('Get PGs error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Start server

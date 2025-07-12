@@ -30,7 +30,12 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.use(bodyParser.json());
+
+// Increase payload size limits for image uploads
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Mount auth routes
 app.use('/api/auth', authRoutes);

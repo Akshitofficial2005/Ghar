@@ -34,7 +34,10 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+
+// Increase payload size limits for image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
 
 // --- Authentication Middleware ---

@@ -8,8 +8,8 @@ const authMiddleware = async (req, res, next) => {
     console.log('Auth middleware - Headers:', req.headers['authorization']);
     console.log('Auth middleware - Token:', token ? 'Token present' : 'No token');
 
-    if (!token) {
-        console.log('Auth middleware - No token provided');
+    if (!token || token === 'null' || token === 'undefined') {
+        console.log('Auth middleware - No valid token provided');
         return res.status(401).json({ message: 'Unauthorized: No token provided' });
     }
 

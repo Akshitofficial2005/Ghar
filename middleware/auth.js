@@ -24,6 +24,16 @@ const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: 'Unauthorized: User not found' });
         }
 
+        // Check if token exists in database
+        const tokenExists = user.activeTokens.some(tokenObj => 
+            tokenObj.token === token && tokenObj.expiresAt > new Date()
+        );
+
+        if (!tokenExists) {
+            console.log('Auth middleware - Token not found in database or expired');
+            return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+        }
+
         console.log('Auth middleware - User authenticated:', user._id, user.role);
         req.user = user;
         next();

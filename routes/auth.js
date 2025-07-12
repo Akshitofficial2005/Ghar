@@ -108,7 +108,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || 'fallback_secret',
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extended to 7 days
     );
 
     res.status(201).json({
@@ -152,7 +152,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || 'fallback_secret',
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extended to 7 days
     );
 
     res.json({
@@ -305,7 +305,7 @@ router.post('/google', async (req, res) => {
         role: user.role 
       },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extended to 7 days for Google OAuth too
     );
 
     // Return user data (excluding password)
@@ -366,6 +366,47 @@ router.put('/update-role', authMiddleware, async (req, res) => {
     res.json({ message: 'Role updated successfully', user });
   } catch (error) {
     console.error('Role update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Token refresh endpoint
+router.post('/refresh-token', authMiddleware, async (req, res) => {
+  try {
+    // If we reach here, the token is valid (authMiddleware passed)
+    const user = await User.findById(req.user._id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate new JWT token
+    const newToken = jwt.sign(
+      { 
+        userId: user._id,
+        email: user.email,
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Token refreshed successfully',
+      token: newToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        profilePicture: user.profilePicture,
+        isActive: user.isActive,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

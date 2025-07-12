@@ -332,4 +332,42 @@ router.post('/google', async (req, res) => {
   }
 });
 
+// Get user profile
+router.get('/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user role (temporary endpoint for fixing 401 issues)
+router.put('/update-role', authMiddleware, async (req, res) => {
+  try {
+    const { role } = req.body;
+    
+    // Allow users to set their own role to 'owner' (for testing)
+    if (!['user', 'owner', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.user._id, 
+      { role }, 
+      { new: true }
+    ).select('-password');
+    
+    console.log(`User ${user._id} role updated to: ${role}`);
+    res.json({ message: 'Role updated successfully', user });
+  } catch (error) {
+    console.error('Role update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

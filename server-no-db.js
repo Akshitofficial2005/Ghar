@@ -132,17 +132,17 @@ adminRouter.get('/bookings', (req, res) => {
     });
 });
 
-// System & Analytics
-adminRouter.get('/system/alerts', (req, res) => {
+// System & Analytics - FLATTENED ROUTES
+adminRouter.get('/system-alerts', (req, res) => {
     res.json({ alerts: [{ id: 'alert-1', type: 'warning', message: 'High server load detected', timestamp: new Date().toISOString() }] });
 });
-adminRouter.get('/analytics/users', (req, res) => {
+adminRouter.get('/analytics-users', (req, res) => {
     res.json({ total: users.length, byRole: users.reduce((acc, u) => ({ ...acc, [u.role]: (acc[u.role] || 0) + 1 }), {}) });
 });
-adminRouter.get('/analytics/bookings', (req, res) => {
+adminRouter.get('/analytics-bookings', (req, res) => {
     res.json({ total: mockBookings.length, byStatus: mockBookings.reduce((acc, b) => ({ ...acc, [b.status]: (acc[b.status] || 0) + 1 }), {}) });
 });
-adminRouter.get('/analytics/revenue', (req, res) => {
+adminRouter.get('/analytics-revenue', (req, res) => {
     res.json({ total: mockBookings.reduce((sum, b) => sum + b.totalAmount, 0), monthlyData: [{ month: 'Current', revenue: 45000 }] });
 });
 

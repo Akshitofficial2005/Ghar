@@ -200,7 +200,20 @@ adminRouter.put('/users/:id/toggle-status', (req, res) => {
 });
 
 adminRouter.get('/bookings', (req, res) => {
-    res.json({ bookings: mockBookings, total: mockBookings.length });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    const paginatedBookings = mockBookings.slice(startIndex, endIndex);
+
+    res.json({
+        bookings: paginatedBookings,
+        total: mockBookings.length,
+        page: page,
+        limit: limit,
+        totalPages: Math.ceil(mockBookings.length / limit)
+    });
 });
 
 adminRouter.get('/system/alerts', (req, res) => {

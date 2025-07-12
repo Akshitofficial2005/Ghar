@@ -171,4 +171,75 @@ router.put('/pgs/:id/reject', auth, adminAuth, async (req, res) => {
   }
 });
 
+// Get all users for admin
+router.get('/users', auth, adminAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, role } = req.query;
+    
+    let query = {};
+    if (role) {
+      query.role = role;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const users = await User.find(query)
+      .select('name email role isActive createdAt phone')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await User.countDocuments(query);
+
+    res.json({
+      users: users.map(user => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive !== false,
+        createdAt: user.createdAt,
+        phone: user.phone
+      })),
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (error) {
+    console.error('Get admin users error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Toggle user status
+router.put('/users/:id/toggle-status', auth, adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    user.isActive = !user.isActive;
+    await user.save();
+    
+    console.log(`Toggled user ${req.params.id} status to: ${user.isActive ? 'active' : 'inactive'}`);
+    
+    res.json({ 
+      success: true, 
+      message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Toggle user status error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

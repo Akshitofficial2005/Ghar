@@ -623,8 +623,61 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// ====================================
+// AUTH MIDDLEWARE
+// ====================================
+
+const authMiddleware = (req, res, next) => {
+  try {
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+    
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    
+    // Find user by ID to get role
+    const user = users.find(u => u.id === decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    
+    req.user = {
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.name
+    };
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Token is not valid' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token has expired' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Admin middleware
+const adminAuth = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
+};
+
 // Admin endpoints
-app.get('/api/admin/dashboard', (req, res) => {
+app.get('/api/admin/dashboard', authMiddleware, adminAuth, (req, res) => {
   res.json({
     totalPGs: 156,
     pendingApprovals: 12,
@@ -633,7 +686,7 @@ app.get('/api/admin/dashboard', (req, res) => {
   });
 });
 
-app.get('/api/admin/pgs', (req, res) => {
+app.get('/api/admin/pgs', authMiddleware, adminAuth, (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   let filteredPGs = mockPGs;
   
@@ -649,7 +702,7 @@ app.get('/api/admin/pgs', (req, res) => {
   });
 });
 
-app.put('/api/admin/pgs/:id/approve', (req, res) => {
+app.put('/api/admin/pgs/:id/approve', authMiddleware, adminAuth, (req, res) => {
   const { id } = req.params;
   
   // Find the PG and update its status
@@ -665,7 +718,7 @@ app.put('/api/admin/pgs/:id/approve', (req, res) => {
   res.json({ success: true, message: 'PG approved successfully' });
 });
 
-app.put('/api/admin/pgs/:id/reject', (req, res) => {
+app.put('/api/admin/pgs/:id/reject', authMiddleware, adminAuth, (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
   
@@ -684,7 +737,7 @@ app.put('/api/admin/pgs/:id/reject', (req, res) => {
 });
 
 // Admin Users Management
-app.get('/api/admin/users', (req, res) => {
+app.get('/api/admin/users', authMiddleware, adminAuth, (req, res) => {
   const { page = 1, limit = 10, role } = req.query;
   let filteredUsers = users;
   
@@ -703,7 +756,8 @@ app.get('/api/admin/users', (req, res) => {
       email: user.email,
       role: user.role,
       isActive: user.isActive !== false,
-      createdAt: user.createdAt || '2024-01-01T00:00:00Z'
+      createdAt: user.createdAt || '2024-01-01T00:00:00Z',
+      phone: user.phone || 'N/A'
     })),
     total: filteredUsers.length,
     page: parseInt(page),
@@ -711,7 +765,7 @@ app.get('/api/admin/users', (req, res) => {
   });
 });
 
-app.put('/api/admin/users/:id/toggle-status', (req, res) => {
+app.put('/api/admin/users/:id/toggle-status', authMiddleware, adminAuth, (req, res) => {
   const { id } = req.params;
   const user = users.find(u => u.id === id);
   
@@ -735,7 +789,7 @@ app.put('/api/admin/users/:id/toggle-status', (req, res) => {
 });
 
 // Admin Bookings Management
-app.get('/api/admin/bookings', (req, res) => {
+app.get('/api/admin/bookings', authMiddleware, adminAuth, (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   
   // Mock bookings data
@@ -809,7 +863,7 @@ app.get('/api/admin/bookings', (req, res) => {
 });
 
 // Admin Analytics Endpoints
-app.get('/api/admin/analytics/revenue', (req, res) => {
+app.get('/api/admin/analytics/revenue', authMiddleware, adminAuth, (req, res) => {
   const revenueData = {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
     datasets: [{
@@ -822,7 +876,7 @@ app.get('/api/admin/analytics/revenue', (req, res) => {
   res.json(revenueData);
 });
 
-app.get('/api/admin/analytics/users', (req, res) => {
+app.get('/api/admin/analytics/users', authMiddleware, adminAuth, (req, res) => {
   const userGrowthData = {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
     datasets: [
@@ -843,7 +897,7 @@ app.get('/api/admin/analytics/users', (req, res) => {
   res.json(userGrowthData);
 });
 
-app.get('/api/admin/analytics/bookings', (req, res) => {
+app.get('/api/admin/analytics/bookings', authMiddleware, adminAuth, (req, res) => {
   const bookingStatusData = {
     labels: ['Confirmed', 'Pending', 'Cancelled', 'Completed'],
     datasets: [{
@@ -860,7 +914,7 @@ app.get('/api/admin/analytics/bookings', (req, res) => {
 });
 
 // System Health and Alerts
-app.get('/api/admin/system/alerts', (req, res) => {
+app.get('/api/admin/system/alerts', authMiddleware, adminAuth, (req, res) => {
   const systemAlerts = [
     {
       id: '1',
@@ -887,44 +941,11 @@ app.get('/api/admin/system/alerts', (req, res) => {
   res.json({ alerts: systemAlerts });
 });
 
-app.put('/api/admin/system/alerts/:id/resolve', (req, res) => {
+app.put('/api/admin/system/alerts/:id/resolve', authMiddleware, adminAuth, (req, res) => {
   const { id } = req.params;
   console.log(`Resolving alert: ${id}`);
   res.json({ success: true, message: 'Alert resolved successfully' });
 });
-
-// ====================================
-// AUTH MIDDLEWARE
-// ====================================
-
-const authMiddleware = (req, res, next) => {
-  try {
-    const authHeader = req.header('Authorization');
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'No token, authorization denied' });
-    }
-    
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    
-    if (!token) {
-      return res.status(401).json({ message: 'No token, authorization denied' });
-    }
-
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-    req.user = decoded;
-    next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Token is not valid' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token has expired' });
-    }
-    res.status(500).json({ message: 'Server error' });
-  }
-};
 
 // ====================================
 // PG MANAGEMENT ENDPOINTS

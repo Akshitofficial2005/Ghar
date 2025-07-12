@@ -92,13 +92,18 @@ router.get('/:id', async (req, res) => {
 // Create PG (Owner only)
 router.post('/', authMiddleware, async (req, res) => {
   try {
+    console.log('PG Creation - User authenticated:', req.user._id, req.user.role);
+    
     if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+      console.log('PG Creation - Access denied. User role:', req.user.role);
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    console.log('PG Creation - Creating PG for user:', req.user._id);
+    
     const pgData = {
       ...req.body,
-      owner: req.user.userId,
+      owner: req.user._id,  // Use _id instead of userId
       isApproved: false,  // All new listings start as pending
       isActive: false     // Inactive until approved
     };
@@ -106,6 +111,7 @@ router.post('/', authMiddleware, async (req, res) => {
     const pg = new PG(pgData);
     await pg.save();
 
+    console.log('PG Creation - PG created successfully:', pg._id);
     res.status(201).json({ message: 'PG created successfully', pg });
   } catch (error) {
     console.error('Create PG error:', error);

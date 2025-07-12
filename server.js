@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 require('dotenv').config();
 const authRoutes = require('./routes/auth');
+const amenityRoutes = require('./routes/amenities');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -30,6 +31,7 @@ app.use(bodyParser.json());
 
 // Mount auth routes
 app.use('/api/auth', authRoutes);
+app.use('/api/amenities', amenityRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

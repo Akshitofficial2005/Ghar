@@ -41,7 +41,20 @@ app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    message: 'Backend server is running'
+  });
+});
+
+// Wake-up endpoint for Render free tier
+app.get('/api/wake-up', (req, res) => {
+  res.json({ 
+    status: 'awake',
+    message: 'Backend server is now awake and ready'
+  });
 });
 
 // Start server

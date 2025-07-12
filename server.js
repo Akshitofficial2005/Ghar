@@ -76,6 +76,52 @@ app.get('/api/emergency-test', (req, res) => {
   });
 });
 
+// Debug auth endpoint
+app.get('/api/debug-auth', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  console.log('Debug Auth - Headers:', req.headers['authorization']);
+  console.log('Debug Auth - Token:', token ? 'Token present' : 'No token');
+  
+  if (!token) {
+    return res.json({ 
+      error: 'No token provided',
+      headers: req.headers,
+      authHeader: authHeader
+    });
+  }
+  
+  try {
+    const jwt = require('jsonwebtoken');
+    const User = require('./models/User');
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Debug Auth - Token decoded:', decoded);
+    
+    const user = await User.findById(decoded.userId).select('-password');
+    console.log('Debug Auth - User found:', user ? user.email : 'No user');
+    
+    res.json({
+      success: true,
+      decoded: decoded,
+      user: user ? {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        name: user.name
+      } : null
+    });
+  } catch (error) {
+    console.error('Debug Auth - Error:', error);
+    res.json({
+      error: error.message,
+      token: token.substring(0, 20) + '...',
+      jwtSecret: process.env.JWT_SECRET ? 'Present' : 'Missing'
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);

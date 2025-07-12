@@ -93,20 +93,38 @@ router.get('/:id', async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   try {
     console.log('PG Creation - User authenticated:', req.user._id, req.user.role);
+    console.log('PG Creation - Request content type:', req.headers['content-type']);
+    console.log('PG Creation - Request body keys:', Object.keys(req.body));
     
     if (req.user.role !== 'owner' && req.user.role !== 'admin') {
       console.log('PG Creation - Access denied. User role:', req.user.role);
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied. Only owners and admins can create PG listings.' });
     }
 
     console.log('PG Creation - Creating PG for user:', req.user._id);
     
+    // Handle JSON request with base64 images
     const pgData = {
       ...req.body,
-      owner: req.user._id,  // Use _id instead of userId
-      isApproved: false,  // All new listings start as pending
-      isActive: false     // Inactive until approved
+      owner: req.user._id,
+      isApproved: false,
+      isActive: false
     };
+    
+    // Convert base64 images to URLs (for now, just store as is)
+    // In production, you would upload these to a cloud service like Cloudinary
+    if (pgData.images && Array.isArray(pgData.images)) {
+      console.log('PG Creation - Processing', pgData.images.length, 'images');
+      // For now, keep the base64 images as they are
+      // TODO: Implement proper image upload to cloud storage
+    }
+
+    console.log('PG Creation - Processed data:', {
+      name: pgData.name,
+      owner: pgData.owner,
+      amenities: pgData.amenities,
+      roomTypes: pgData.roomTypes
+    });
 
     const pg = new PG(pgData);
     await pg.save();
@@ -115,7 +133,15 @@ router.post('/', authMiddleware, async (req, res) => {
     res.status(201).json({ message: 'PG created successfully', pg });
   } catch (error) {
     console.error('Create PG error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    res.status(500).json({ 
+      message: 'Server error while creating PG',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
@@ -128,7 +154,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'PG not found' });
     }
 
-    if (pg.owner.toString() !== req.user.userId && req.user.role !== 'admin') {
+    if (pg.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -154,7 +180,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'PG not found' });
     }
 
-    if (pg.owner.toString() !== req.user.userId && req.user.role !== 'admin') {
+    if (pg.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -173,7 +199,7 @@ router.get('/owner/my-pgs', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const pgs = await PG.find({ owner: req.user.userId })
+    const pgs = await PG.find({ owner: req.user._id })
       .sort({ createdAt: -1 });
 
     res.json({ 

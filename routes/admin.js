@@ -123,6 +123,25 @@ router.get('/system-alerts', async (req, res) => {
     res.json({ alerts: [{ id: 'alert-1', type: 'warning', message: 'High server load detected', timestamp: new Date().toISOString() }] });
 });
 
+// Resolve System Alert
+router.put('/system/alerts/:alertId/resolve', async (req, res) => {
+    try {
+        const { alertId } = req.params;
+        console.log(`Resolving alert: ${alertId}`);
+        
+        // In a real implementation, you would update the alert status in your database
+        // For now, we'll just return a success response
+        res.json({ 
+            success: true, 
+            message: `Alert ${alertId} resolved successfully`,
+            alertId 
+        });
+    } catch (error) {
+        console.error('Error resolving alert:', error);
+        res.status(500).json({ message: 'Server error while resolving alert' });
+    }
+});
+
 // User Analytics
 router.get('/analytics-users', async (req, res) => {
     try {

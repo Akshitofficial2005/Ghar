@@ -16,13 +16,29 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function() {
+      // Password not required for Google OAuth users
+      return !this.googleId;
+    },
     minlength: [6, 'Password must be at least 6 characters']
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
-    match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
+    required: function() {
+      // Phone not required for Google OAuth users initially
+      return !this.googleId;
+    },
+    match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number'],
+    default: ''
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true // Allows multiple null values
+  },
+  profilePicture: {
+    type: String,
+    default: ''
   },
   role: {
     type: String,
@@ -35,7 +51,14 @@ const userSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false
+    default: function() {
+      // Google OAuth users are automatically verified
+      return !!this.googleId;
+    }
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   },
   verificationToken: String,
   resetPasswordToken: String,
@@ -68,5 +91,6 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ googleId: 1 });
 
 module.exports = mongoose.model('User', userSchema);

@@ -2,10 +2,14 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Email configuration
 const createEmailTransporter = () => {
@@ -245,27 +249,86 @@ router.post('/google', async (req, res) => {
     const { credential } = req.body;
     
     if (!credential) {
-      return res.status(400).json({ error: 'Credential is required' });
+      return res.status(400).json({ error: 'Google credential is required' });
     }
-    
-    // Parse the JWT token
-    const payload = JSON.parse(Buffer.from(credential.split('.')[1], 'base64').toString());
-    
-    // Return user data
-    res.json({
-      user: {
-        id: payload.sub,
-        name: payload.name,
-        email: payload.email,
-        role: 'user',
-        phone: '',
-        createdAt: new Date().toISOString()
-      },
-      token: 'auth_token_' + Date.now()
+
+    // Verify the Google token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
     });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email not provided by Google' });
+    }
+
+    // Check if user already exists
+    let user = await User.findOne({ 
+      $or: [
+        { email },
+        { googleId }
+      ]
+    });
+
+    if (user) {
+      // Update existing user with Google ID if not set
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.profilePicture = picture;
+        await user.save();
+      }
+    } else {
+      // Create new user
+      user = new User({
+        name,
+        email,
+        googleId,
+        profilePicture: picture,
+        role: 'user',
+        isActive: true,
+        phone: '', // Will be empty initially, user can update later
+        // No password needed for Google auth users
+        password: await bcrypt.hash(Math.random().toString(36), 10) // Random password as fallback
+      });
+
+      await user.save();
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user._id,
+        email: user.email,
+        role: user.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return user data (excluding password)
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      profilePicture: user.profilePicture,
+      isActive: user.isActive,
+      createdAt: user.createdAt
+    };
+
+    res.json({
+      message: 'Google authentication successful',
+      user: userData,
+      token
+    });
+
   } catch (error) {
     console.error('Google auth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
+    res.status(500).json({ error: 'Google authentication failed' });
   }
 });
 

@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/User');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -168,9 +168,13 @@ router.post('/login', async (req, res) => {
 });
 
 // Get current user
-router.get('/me', auth, async (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    // req.user is populated by authMiddleware
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
     res.json({ user });
   } catch (error) {
     console.error('Get user error:', error);
@@ -185,10 +189,11 @@ router.post('/forgot-password', async (req, res) => {
     
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      // To prevent user enumeration, we send a success response even if user doesn't exist.
+      return res.json({ message: 'If a user with that email exists, a password reset link has been sent.' });
     }
 
-    // Generate reset token (simplified)
+    // Generate reset token
     const resetToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || 'fallback_secret',
@@ -198,19 +203,15 @@ router.post('/forgot-password', async (req, res) => {
     // Send password reset email
     const emailSent = await sendPasswordResetEmail(user.email, resetToken, user.name);
     if (!emailSent) {
-      return res.status(500).json({ message: 'Failed to send password reset email' });
+      // Log the error but don't expose it to the client
+      console.error(`Failed to send password reset email to ${user.email}`);
     }
     
-    res.json({ message: 'Password reset email sent successfully' });
-    
-    if (!emailSent) {
-      return res.status(500).json({ message: 'Failed to send password reset email' });
-    }
-    
-    res.json({ message: 'Password reset email sent' });
+    res.json({ message: 'If a user with that email exists, a password reset link has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({ message: 'Server error' });
+    // Generic error for the client
+    res.status(500).json({ message: 'An error occurred while attempting to send the reset email.' });
   }
 });
 

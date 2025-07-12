@@ -1,6 +1,6 @@
 const express = require('express');
 const PG = require('../models/PG');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all PGs with filters
@@ -90,7 +90,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create PG (Owner only)
-router.post('/', auth, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'owner' && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
@@ -114,7 +114,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Update PG
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const pg = await PG.findById(req.params.id);
     
@@ -140,7 +140,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // Delete PG
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const pg = await PG.findById(req.params.id);
     
@@ -161,7 +161,7 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // Get owner's PGs (including pending)
-router.get('/owner/my-pgs', auth, async (req, res) => {
+router.get('/owner/my-pgs', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'owner' && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });

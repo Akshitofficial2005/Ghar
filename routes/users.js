@@ -1,11 +1,11 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Get user profile
-router.get('/profile', auth, async (req, res) => {
+router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
     res.json(user);
@@ -16,7 +16,7 @@ router.get('/profile', auth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', auth, [
+router.put('/profile', authMiddleware, [
   body('name').optional().trim().isLength({ min: 2 }),
   body('phone').optional().isMobilePhone('en-IN')
 ], async (req, res) => {
@@ -50,7 +50,7 @@ router.put('/profile', auth, [
 });
 
 // Change password
-router.put('/change-password', auth, [
+router.put('/change-password', authMiddleware, [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
 ], async (req, res) => {

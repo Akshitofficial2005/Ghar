@@ -1,6 +1,6 @@
 const express = require('express');
 const Amenity = require('../models/Amenity');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all active amenities
@@ -89,7 +89,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get all amenities (admin only)
-router.get('/all', auth, async (req, res) => {
+router.get('/all', authMiddleware, async (req, res) => {
   try {
     const amenities = await Amenity.find().sort({ category: 1, name: 1 });
     res.json(amenities);
@@ -100,7 +100,7 @@ router.get('/all', auth, async (req, res) => {
 });
 
 // Create amenity (admin only)
-router.post('/', auth, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const amenity = new Amenity(req.body);
     await amenity.save();
@@ -116,7 +116,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Update amenity (admin only)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const amenity = await Amenity.findByIdAndUpdate(
       req.params.id,
@@ -139,7 +139,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // Delete amenity (admin only)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const amenity = await Amenity.findByIdAndDelete(req.params.id);
     

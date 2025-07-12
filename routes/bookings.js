@@ -1,11 +1,11 @@
 const express = require('express');
 const Booking = require('../models/Booking');
 const PG = require('../models/PG');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Create booking
-router.post('/', auth, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const { pgId, roomTypeId, checkIn, checkOut, guests } = req.body;
 
@@ -50,7 +50,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Get user bookings
-router.get('/', auth, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const bookings = await Booking.find({ userId: req.user.userId })
       .populate('pgId', 'name location images')
@@ -64,7 +64,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Get single booking
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('pgId', 'name location images owner')
@@ -86,7 +86,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Update booking status
-router.put('/:id/status', auth, async (req, res) => {
+router.put('/:id/status', authMiddleware, async (req, res) => {
   try {
     const { status } = req.body;
     const booking = await Booking.findById(req.params.id);

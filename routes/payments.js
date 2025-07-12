@@ -1,7 +1,7 @@
 const express = require('express');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const router = express.Router();
@@ -12,7 +12,7 @@ const razorpay = new Razorpay({
 });
 
 // Create payment order
-router.post('/create-order', auth, async (req, res) => {
+router.post('/create-order', authMiddleware, async (req, res) => {
   try {
     const { bookingId, amount } = req.body;
     
@@ -56,7 +56,7 @@ router.post('/create-order', auth, async (req, res) => {
 });
 
 // Verify payment
-router.post('/verify', auth, async (req, res) => {
+router.post('/verify', authMiddleware, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
@@ -96,7 +96,7 @@ router.post('/verify', auth, async (req, res) => {
 });
 
 // Refund payment
-router.post('/refund', auth, async (req, res) => {
+router.post('/refund', authMiddleware, async (req, res) => {
   try {
     const { paymentId, amount, reason } = req.body;
     

@@ -1,10 +1,10 @@
 const express = require('express');
 const Message = require('../models/Message');
-const auth = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Get conversation between two users
-router.get('/:userId', auth, async (req, res) => {
+router.get('/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
     const { page = 1, limit = 50 } = req.query;
@@ -24,7 +24,7 @@ router.get('/:userId', auth, async (req, res) => {
 });
 
 // Send a message
-router.post('/', auth, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const { receiver, message, messageType = 'text', metadata } = req.body;
     
@@ -57,7 +57,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Mark message as read
-router.put('/:messageId/read', auth, async (req, res) => {
+router.put('/:messageId/read', authMiddleware, async (req, res) => {
   try {
     const { messageId } = req.params;
     
@@ -82,7 +82,7 @@ router.put('/:messageId/read', auth, async (req, res) => {
 });
 
 // Get user conversations
-router.get('/', auth, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const conversations = await Message.aggregate([
       {

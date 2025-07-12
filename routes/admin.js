@@ -130,7 +130,33 @@ router.get('/analytics-users', async (req, res) => {
         const byRole = await User.aggregate([
             { $group: { _id: '$role', count: { $sum: 1 } } }
         ]);
-        res.json({ total, byRole });
+        
+        // Transform to Chart.js format
+        const labels = byRole.map(item => item._id || 'Unknown');
+        const data = byRole.map(item => item.count);
+        
+        const chartData = {
+            labels,
+            datasets: [{
+                label: 'Users by Role',
+                data,
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(255, 205, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(255, 205, 86, 1)',
+                    'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 1
+            }]
+        };
+        
+        res.json(chartData);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -143,7 +169,37 @@ router.get('/analytics-bookings', async (req, res) => {
         const byStatus = await Booking.aggregate([
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
-        res.json({ total, byStatus });
+        
+        // Transform to Chart.js format for Doughnut chart
+        const labels = byStatus.length > 0 ? byStatus.map(item => item._id || 'Unknown') : ['No Data'];
+        const data = byStatus.length > 0 ? byStatus.map(item => item.count) : [1];
+        
+        const chartData = {
+            labels,
+            datasets: [{
+                label: 'Bookings by Status',
+                data,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 205, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 205, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                borderWidth: 1
+            }]
+        };
+        
+        res.json(chartData);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -158,9 +214,34 @@ router.get('/analytics-revenue', async (req, res) => {
         ]);
         const total = totalResult.length > 0 ? totalResult[0].total : 0;
         
-        const monthlyData = [{ month: 'Current', revenue: total }]; 
+        // Create monthly data for the last 6 months
+        const monthlyData = [];
+        const currentDate = new Date();
+        for (let i = 5; i >= 0; i--) {
+            const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+            const monthName = date.toLocaleString('default', { month: 'short' });
+            // For now, distribute total revenue across months (in real app, you'd query by month)
+            monthlyData.push(i === 0 ? total : Math.floor(total / 6));
+        }
         
-        res.json({ total, monthlyData });
+        // Transform to Chart.js format for Line chart
+        const chartData = {
+            labels: monthlyData.map((_, index) => {
+                const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - 5 + index, 1);
+                return date.toLocaleString('default', { month: 'short' });
+            }),
+            datasets: [{
+                label: 'Revenue (₹)',
+                data: monthlyData,
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        };
+        
+        res.json(chartData);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

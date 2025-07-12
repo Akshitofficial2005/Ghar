@@ -46,7 +46,15 @@ router.get('/pgs', async (req, res) => {
 
 router.put('/pgs/:id/approve', async (req, res) => {
     try {
-        const pg = await PG.findByIdAndUpdate(req.params.id, { status: 'approved', isApproved: true }, { new: true });
+        const pg = await PG.findByIdAndUpdate(
+            req.params.id, 
+            { 
+                status: 'approved', 
+                isApproved: true,
+                isActive: true  // Also set isActive to true so it shows on homepage
+            }, 
+            { new: true }
+        );
         if (!pg) return res.status(404).json({ message: 'PG not found' });
         res.json(pg);
     } catch (error) {

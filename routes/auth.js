@@ -130,19 +130,29 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
+    console.log('Login attempt:', req.body.email);
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      console.log('Login failed - missing email or password');
+      return res.status(400).json({ message: 'Email and password required' });
+    }
 
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
+      console.log('Login failed - user not found:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Login failed - password mismatch for:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+
+    console.log('Login successful for:', user.email, 'Role:', user.role);
 
     // Update last login
     user.lastLogin = new Date();

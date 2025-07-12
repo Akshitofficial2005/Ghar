@@ -5,20 +5,20 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const { connectDB } = require('./config/database');
+// const { connectDB } = require('./config/database');
 require('dotenv').config();
 
 const app = express();
 const PORT = 5001;
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB - commented out for no-db version
+// connectDB();
 
 // Email configuration
 const createEmailTransporter = () => {
   // Check if production email settings are available
   if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: process.env.EMAIL_PORT || 587,
       secure: process.env.EMAIL_SECURE === 'true',
@@ -31,7 +31,7 @@ const createEmailTransporter = () => {
   
   // For development/testing, use Gmail with app passwords or ethereal
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -94,6 +94,100 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
   }
 };
 
+// Mock amenities data
+const mockAmenities = [
+  {
+    _id: '1',
+    name: 'WiFi',
+    description: 'High-speed internet connectivity',
+    monthlyCharge: 0,
+    icon: '📶',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '2',
+    name: 'Food/Meals',
+    description: 'Home-cooked meals included',
+    monthlyCharge: 3000,
+    icon: '🍽️',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '3',
+    name: 'Laundry',
+    description: 'Washing and cleaning services',
+    monthlyCharge: 500,
+    icon: '👕',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '4',
+    name: 'Parking',
+    description: 'Dedicated parking space',
+    monthlyCharge: 1000,
+    icon: '🚗',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '5',
+    name: 'Air Conditioning',
+    description: 'Personal AC in room',
+    monthlyCharge: 2000,
+    icon: '❄️',
+    category: 'premium',
+    isActive: true
+  },
+  {
+    _id: '6',
+    name: 'Power Backup',
+    description: '24/7 power backup facility',
+    monthlyCharge: 500,
+    icon: '🔋',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '7',
+    name: 'Security',
+    description: '24/7 security and CCTV',
+    monthlyCharge: 0,
+    icon: '🛡️',
+    category: 'basic',
+    isActive: true
+  },
+  {
+    _id: '8',
+    name: 'Gym/Fitness',
+    description: 'On-site fitness facilities',
+    monthlyCharge: 1500,
+    icon: '💪',
+    category: 'premium',
+    isActive: true
+  },
+  {
+    _id: '9',
+    name: 'Mini Fridge',
+    description: 'Personal refrigerator in room',
+    monthlyCharge: 1500,
+    icon: '🧊',
+    category: 'premium',
+    isActive: true
+  },
+  {
+    _id: '10',
+    name: 'Study Table',
+    description: 'Dedicated study space',
+    monthlyCharge: 0,
+    icon: '📚',
+    category: 'basic',
+    isActive: true
+  }
+];
+
 // Mock data for admin dashboard
 const mockPGs = [
   {
@@ -147,6 +241,20 @@ const mockPGs = [
     createdAt: '2024-01-16T11:00:00Z'
   }
 ];
+
+// In-memory users storage
+let users = [];
+
+// Helper functions for user persistence (mock for no-db mode)
+const saveUsers = () => {
+  // In no-db mode, just keep in memory
+  console.log(`Saved ${users.length} users to memory`);
+};
+
+const loadUsers = () => {
+  // In no-db mode, users start empty and are populated by demo accounts
+  return users;
+};
 
 // Add demo accounts with pre-hashed passwords
 const initializeDemoAccounts = async () => {
@@ -255,6 +363,17 @@ app.use((err, req, res, next) => {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Get all active amenities
+app.get('/api/amenities', (req, res) => {
+  try {
+    const activeAmenities = mockAmenities.filter(amenity => amenity.isActive);
+    res.json(activeAmenities);
+  } catch (error) {
+    console.error('Get amenities error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Register endpoint

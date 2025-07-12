@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const amenityRoutes = require('./routes/amenities');
 const pgRoutes = require('./routes/pgs');
 const adminRoutes = require('./routes/admin');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -36,6 +37,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/amenities', amenityRoutes);
 app.use('/api/pgs', pgRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

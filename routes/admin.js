@@ -3,6 +3,7 @@ const User = require('../models/User');
 const PG = require('../models/PG');
 const Booking = require('../models/Booking');
 const auth = require('../middleware/auth');
+const notificationService = require('../services/notificationService');
 const router = express.Router();
 
 // Admin middleware
@@ -90,10 +91,24 @@ router.put('/pgs/:id/approve', auth, adminAuth, async (req, res) => {
         approvedBy: req.user.userId
       },
       { new: true }
-    );
+    ).populate('owner', 'name email phone');
 
     if (!pg) {
       return res.status(404).json({ message: 'PG not found' });
+    }
+
+    // Send notification to owner
+    if (pg.owner) {
+      try {
+        await notificationService.sendPGApprovalNotification(
+          pg.owner,
+          pg.name,
+          'approved'
+        );
+        console.log(`Approval notification sent to ${pg.owner.email}`);
+      } catch (notificationError) {
+        console.error('Failed to send approval notification:', notificationError);
+      }
     }
 
     // Broadcast real-time update
@@ -126,10 +141,24 @@ router.put('/pgs/:id/reject', auth, adminAuth, async (req, res) => {
         rejectionReason: reason
       },
       { new: true }
-    );
+    ).populate('owner', 'name email phone');
 
     if (!pg) {
       return res.status(404).json({ message: 'PG not found' });
+    }
+
+    // Send notification to owner
+    if (pg.owner) {
+      try {
+        await notificationService.sendPGApprovalNotification(
+          pg.owner,
+          pg.name,
+          'rejected'
+        );
+        console.log(`Rejection notification sent to ${pg.owner.email}`);
+      } catch (notificationError) {
+        console.error('Failed to send rejection notification:', notificationError);
+      }
     }
 
     res.json({

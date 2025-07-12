@@ -2,9 +2,9 @@
   {
     "id": "demo-admin",
     "name": "Admin User",
-    "email": "env:ADMIN_EMAIL",
-    "password": "env:ADMIN_PASSWORD",
-    "phone": "",
+    "email": "agrawalakshit36@gmail.com",
+    "password": "$2a$10$G/SMfatC7GH6kRREndZzI.5DEb9AahdeNxbBPmxrVYoMUiA5SuqLW",
+    "phone": "+919907002817",
     "role": "admin",
     "createdAt": "2025-07-10T13:31:18.938Z"
   },

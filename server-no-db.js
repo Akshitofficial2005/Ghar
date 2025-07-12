@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const notificationService = require('./services/notificationService');
 // const { connectDB } = require('./config/database');
 require('dotenv').config();
 
@@ -1012,6 +1013,168 @@ app.get('/api/pgs', (req, res) => {
     console.error('Get PGs error:', error);
     res.status(500).json({ message: 'Server error' });
   }
+});
+
+// ===== NOTIFICATION ENDPOINTS =====
+
+// Send test notification
+app.post('/api/notifications/send-test', authMiddleware, async (req, res) => {
+  try {
+    const { testType, testData } = req.body;
+    
+    console.log('Test notification requested:', { testType, testData });
+    
+    let result;
+    
+    if (testType === 'email') {
+      // Send real email
+      result = await notificationService.sendEmail(
+        testData.to,
+        testData.subject || 'Test Email from Ghar App',
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #3B82F6;">Test Email from Ghar App</h2>
+          <p>This is a test email to verify that the notification system is working properly.</p>
+          <p><strong>Message:</strong> ${testData.message || 'Test notification sent successfully!'}</p>
+          <p>If you received this email, the notification system is working correctly!</p>
+          <hr>
+          <p style="color: #666; font-size: 12px;">Sent from Ghar App Notification System</p>
+        </div>
+        `
+      );
+    } else if (testType === 'sms') {
+      // Send real SMS
+      result = await notificationService.sendSMS(
+        testData.phone || testData.to,
+        testData.message || 'Test SMS from Ghar App - Notification system is working!'
+      );
+    } else if (testType === 'whatsapp') {
+      // Send real WhatsApp
+      result = await notificationService.sendWhatsApp(
+        testData.phone || testData.to,
+        testData.message || 'Test WhatsApp from Ghar App - Notification system is working!'
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: 'Test notification sent successfully',
+      result: {
+        type: testType,
+        to: testData.to || testData.phone,
+        subject: testData.subject,
+        status: result ? 'sent' : 'failed',
+        details: result
+      }
+    });
+  } catch (error) {
+    console.error('Send test notification error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Send bulk promotional notifications
+app.post('/api/notifications/send-bulk-promo', authMiddleware, async (req, res) => {
+  try {
+    const { promoContent } = req.body;
+    
+    console.log('Bulk promo notification requested:', promoContent);
+    
+    const results = [];
+    let sentCount = 0;
+    let failedCount = 0;
+    
+    // Send real notifications to all users
+    for (const user of users) {
+      try {
+        // Send promotional email
+        const emailResult = await notificationService.sendPromotionalMessage(user, promoContent);
+        
+        results.push({
+          userId: user.id,
+          email: user.email,
+          phone: user.phone,
+          status: 'sent',
+          message: 'Promotional notification sent successfully',
+          details: emailResult
+        });
+        sentCount++;
+      } catch (error) {
+        results.push({
+          userId: user.id,
+          email: user.email,
+          phone: user.phone,
+          status: 'failed',
+          message: error.message
+        });
+        failedCount++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Bulk promotional notifications processed',
+      results: {
+        total: users.length,
+        sent: sentCount,
+        failed: failedCount,
+        details: results
+      }
+    });
+  } catch (error) {
+    console.error('Send bulk promo error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Send booking confirmation notification
+app.post('/api/notifications/send-booking-confirmation', authMiddleware, async (req, res) => {
+  try {
+    const { bookingData, userInfo } = req.body;
+    
+    console.log('Booking confirmation notification requested:', { bookingData, userInfo });
+    
+    // Send real booking confirmation notifications
+    const emailResult = await notificationService.sendBookingConfirmation(bookingData, userInfo);
+    
+    res.json({
+      success: true,
+      message: 'Booking confirmation notification sent successfully',
+      result: {
+        userId: userInfo.id,
+        email: userInfo.email,
+        phone: userInfo.phone,
+        pgName: bookingData.pgName,
+        status: 'sent',
+        emailResult: emailResult
+      }
+    });
+  } catch (error) {
+    console.error('Send booking confirmation error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Health check for notifications
+app.get('/api/notifications/health', (req, res) => {
+  const emailConfigured = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD;
+  const smsConfigured = process.env.FAST2SMS_API_KEY;
+  const whatsappConfigured = process.env.WHATSAPP_API_KEY;
+  
+  res.json({
+    status: 'ok',
+    message: 'Notification service is running (Real Mode)',
+    services: {
+      email: emailConfigured ? 'configured' : 'not configured',
+      sms: smsConfigured ? 'configured' : 'free tier (TextBelt)',
+      whatsapp: whatsappConfigured ? 'configured' : 'not configured'
+    },
+    config: {
+      emailService: emailConfigured ? 'Gmail SMTP' : 'Not configured',
+      smsService: 'TextBelt (Free) + Fast2SMS',
+      whatsappService: 'CallMeBot API'
+    }
+  });
 });
 
 // Start server

@@ -270,6 +270,22 @@ const loadUsers = () => {
   return users;
 };
 
+// Mock bookings data
+let mockBookings = [
+  {
+    id: 'booking-1',
+    userId: 'demo-user',
+    pgId: 'pg-2',
+    roomType: 'double',
+    startDate: '2024-02-01',
+    endDate: '2024-08-01',
+    monthlyRent: 15000,
+    deposit: 7500,
+    status: 'active',
+    createdAt: '2024-01-25T10:00:00Z'
+  }
+];
+
 // Add demo accounts with pre-hashed passwords
 const initializeDemoAccounts = async () => {
   // Check if demo accounts already exist
@@ -303,6 +319,155 @@ const initializeDemoAccounts = async () => {
   saveUsers(); // Save to file
   console.log('Demo accounts initialized:', users.map(u => ({ email: u.email, role: u.role })));
 };
+
+// Middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Auth middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Admin middleware
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
+};
+
+// Missing API Routes
+
+// Admin bookings endpoint
+app.get('/api/admin/bookings', authenticateToken, requireAdmin, (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  
+  const paginatedBookings = mockBookings.slice(startIndex, endIndex);
+  
+  res.json({
+    bookings: paginatedBookings,
+    totalCount: mockBookings.length,
+    currentPage: page,
+    totalPages: Math.ceil(mockBookings.length / limit)
+  });
+});
+
+// Admin system alerts endpoint
+app.get('/api/admin/system/alerts', authenticateToken, requireAdmin, (req, res) => {
+  const mockAlerts = [
+    {
+      id: 'alert-1',
+      type: 'warning',
+      message: 'Server load is high',
+      timestamp: new Date().toISOString(),
+      resolved: false
+    }
+  ];
+  res.json({ alerts: mockAlerts });
+});
+
+// Admin analytics endpoints
+app.get('/api/admin/analytics/users', authenticateToken, requireAdmin, (req, res) => {
+  const userStats = {
+    totalUsers: users.length,
+    newUsersThisMonth: users.filter(u => {
+      const userDate = new Date(u.createdAt);
+      const now = new Date();
+      return userDate.getMonth() === now.getMonth() && userDate.getFullYear() === now.getFullYear();
+    }).length,
+    usersByRole: {
+      admin: users.filter(u => u.role === 'admin').length,
+      owner: users.filter(u => u.role === 'owner').length,
+      user: users.filter(u => u.role === 'user').length
+    }
+  };
+  res.json(userStats);
+});
+
+app.get('/api/admin/analytics/revenue', authenticateToken, requireAdmin, (req, res) => {
+  const revenueStats = {
+    totalRevenue: 125000,
+    monthlyRevenue: 45000,
+    revenueGrowth: 12.5,
+    monthlyData: [
+      { month: 'Jan', revenue: 35000 },
+      { month: 'Feb', revenue: 45000 }
+    ]
+  };
+  res.json(revenueStats);
+});
+
+app.get('/api/admin/analytics/bookings', authenticateToken, requireAdmin, (req, res) => {
+  const bookingStats = {
+    totalBookings: mockBookings.length,
+    activeBookings: mockBookings.filter(b => b.status === 'active').length,
+    pendingBookings: mockBookings.filter(b => b.status === 'pending').length,
+    monthlyBookings: mockBookings.filter(b => {
+      const bookingDate = new Date(b.createdAt);
+      const now = new Date();
+      return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
+    }).length
+  };
+  res.json(bookingStats);
+});
+
+// Fix PG creation endpoint with proper auth
+app.post('/api/pgs', authenticateToken, (req, res) => {
+  if (req.user.role !== 'owner' && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Only owners can create PGs' });
+  }
+  
+  const newPG = {
+    id: `pg-${Date.now()}`,
+    ...req.body,
+    owner: req.user.id,
+    status: 'pending',
+    isApproved: false,
+    isActive: false,
+    createdAt: new Date().toISOString()
+  };
+  
+  mockPGs.push(newPG);
+  res.status(201).json({ message: 'PG created successfully', pg: newPG });
+});
+
+// Initialize demo accounts on startup
+initializeDemoAccounts();
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
 
 // Initialize demo accounts
 initializeDemoAccounts();

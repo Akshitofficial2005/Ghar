@@ -57,6 +57,52 @@ app.get('/api/wake-up', (req, res) => {
   });
 });
 
+// Temporary admin setup endpoint (for debugging)
+app.post('/api/setup-admin', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const User = require('./models/User');
+    
+    const adminEmail = process.env.ADMIN_EMAIL || 'agrawalakshit36@gmail.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'akshit@Mayank2003';
+    
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(adminPassword, salt);
+    
+    // Find and update or create admin user
+    const adminUser = await User.findOneAndUpdate(
+      { email: adminEmail },
+      {
+        name: 'Admin User',
+        email: adminEmail,
+        password: hashedPassword,
+        phone: '+919907002817',
+        role: 'admin',
+        isVerified: true
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Admin user created/updated successfully',
+      admin: {
+        id: adminUser._id,
+        email: adminUser.email,
+        role: adminUser.role
+      }
+    });
+  } catch (error) {
+    console.error('Admin setup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to setup admin user',
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);

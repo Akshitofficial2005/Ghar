@@ -203,7 +203,7 @@ app.use('/api/auth', authRouter);
 
 // Public PG creation endpoint (no auth required)
 app.post('/api/pgs', (req, res) => {
-    const newPG = { id: `pg-${Date.now()}`, ...req.body, status: 'pending', createdAt: new Date().toISOString() };
+    const newPG = { _id: `pg-${Date.now()}`, ...req.body, status: 'pending', createdAt: new Date().toISOString() };
     mockPGs.push(newPG);
     res.status(201).json(newPG);
 });

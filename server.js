@@ -8,6 +8,7 @@ const amenityRoutes = require('./routes/amenities');
 const pgRoutes = require('./routes/pgs');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
+const { debugEnvironment } = require('./debug-environment');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -53,6 +54,9 @@ app.get('/api/health', (req, res) => {
     message: 'Backend server is running'
   });
 });
+
+// Environment debug endpoint - CRITICAL for troubleshooting 401 errors
+app.get('/api/debug-env', debugEnvironment);
 
 // Wake-up endpoint for Render free tier
 app.get('/api/wake-up', (req, res) => {

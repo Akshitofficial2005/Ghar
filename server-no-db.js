@@ -31,25 +31,39 @@ let mockBookings = [
 // --- Middleware ---
 app.use(helmet());
 
-// Enhanced CORS configuration to handle preflight requests properly
+// AGGRESSIVE CORS Configuration - Allow all for debugging
+app.use((req, res, next) => {
+  // Set CORS headers manually for maximum compatibility
+  const origin = req.headers.origin;
+  if (origin && (origin.includes('gharfr.vercel.app') || origin.includes('localhost'))) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', 'https://gharfr.vercel.app');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight requests immediately
+  if (req.method === 'OPTIONS') {
+    console.log(`✅ CORS PREFLIGHT: ${req.method} ${req.path} from ${origin}`);
+    return res.status(200).end();
+  }
+  
+  console.log(`🌐 CORS REQUEST: ${req.method} ${req.path} from ${origin}`);
+  next();
+});
+
+// Backup CORS using cors middleware
 app.use(cors({
   origin: ['https://gharfr.vercel.app', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Authorization'],
-  optionsSuccessStatus: 200, // For legacy browser support
-  preflightContinue: false, // Pass control to next handler
+  optionsSuccessStatus: 200,
 }));
-
-// Explicit OPTIONS handler for all routes to ensure preflight requests work
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
 
 // Increase payload size limits for image uploads
 app.use(express.json({ limit: '50mb' }));
@@ -105,7 +119,24 @@ const adminAuth = (req, res, next) => {
 
 // 1. Public Routes (No Auth Required)
 const publicRouter = express.Router();
-publicRouter.get('/health', (req, res) => res.json({ status: 'ok', version: '1.0.0' }));
+publicRouter.get('/health', (req, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }));
+
+// CORS test endpoint
+publicRouter.get('/cors-test', (req, res) => {
+  res.json({ 
+    message: 'CORS test successful!', 
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+    headers: req.headers
+  });
+});
+
+// OPTIONS test endpoint  
+publicRouter.options('/cors-test', (req, res) => {
+  console.log('✅ CORS OPTIONS test endpoint hit');
+  res.json({ message: 'OPTIONS working' });
+});
+
 app.use('/api', publicRouter);
 
 // 2. Auth Routes

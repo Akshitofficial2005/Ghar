@@ -31,28 +31,26 @@ let mockBookings = [
 // --- Middleware ---
 app.use(helmet());
 
-// AGGRESSIVE CORS Configuration - Allow all for debugging
+// ULTRA-AGGRESSIVE CORS Configuration - Force all headers
 app.use((req, res, next) => {
-  // Set CORS headers manually for maximum compatibility
-  const origin = req.headers.origin;
-  if (origin && (origin.includes('gharfr.vercel.app') || origin.includes('localhost'))) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    res.header('Access-Control-Allow-Origin', 'https://gharfr.vercel.app');
-  }
+  console.log(`📡 INCOMING REQUEST: ${req.method} ${req.path} from ${req.headers.origin || 'unknown'}`);
   
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma');
+  // Force CORS headers for ALL requests
+  res.header('Access-Control-Allow-Origin', '*'); // Allow all origins temporarily
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma, X-HTTP-Method-Override');
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, X-JSON');
   
   // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
-    console.log(`✅ CORS PREFLIGHT: ${req.method} ${req.path} from ${origin}`);
-    return res.status(200).end();
+    console.log(`✅ HANDLING PREFLIGHT: ${req.path} from ${req.headers.origin}`);
+    res.header('Content-Length', '0');
+    return res.status(204).send();
   }
   
-  console.log(`🌐 CORS REQUEST: ${req.method} ${req.path} from ${origin}`);
+  console.log(`🔄 PROCESSING REQUEST: ${req.method} ${req.path}`);
   next();
 });
 
@@ -288,8 +286,12 @@ const initializeServer = async () => {
     }
 
     app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🚀 GHAR BACKEND SERVER STARTED SUCCESSFULLY`);
+        console.log(`📡 Server running on http://localhost:${PORT}`);
+        console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🔐 JWT_SECRET loaded: ${process.env.JWT_SECRET ? 'YES' : 'NO'}`);
+        console.log(`⚡ CORS configured for: https://gharfr.vercel.app`);
+        console.log(`📋 Demo accounts: admin@ghar.com / admin123`);
     });
 };
 

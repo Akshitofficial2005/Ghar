@@ -101,11 +101,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     console.log('=== PG CREATION DEBUG ===');
-    console.log('User from auth middleware:', {
-      id: req.user._id,
-      role: req.user.role,
-      email: req.user.email
-    });
+    // No user context, public endpoint
     console.log('Request body keys:', Object.keys(req.body));
     
     const {
@@ -141,7 +137,7 @@ router.post('/', async (req, res) => {
       images: images || [],
       contactNumber: contactNumber || '',
       rules: rules || [],
-      owner: req.user._id,
+      // owner: req.user?._id, // No owner for public PG creation
       isApproved: true, // Auto-approve for now
       isActive: true
     };

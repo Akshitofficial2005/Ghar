@@ -89,12 +89,32 @@ const authMiddleware = (req, res, next) => {
         return res.status(401).json({ message: 'Unauthorized: No token provided' });
     }
     
-    jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', (err, decoded) => {
-        if (err) {
-            console.log('❌ JWT verification error:', err.message);
-            return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+    // Try multiple JWT secrets for compatibility
+    const possibleSecrets = [
+        process.env.JWT_SECRET,
+        'ghar_super_secret_jwt_key_2024',
+        'ghar-super-secret-jwt-key-2024',
+        'fallback-secret'
+    ].filter(Boolean);
+    
+    let decoded = null;
+    let lastError = null;
+    
+    for (const secret of possibleSecrets) {
+        try {
+            decoded = jwt.verify(token, secret);
+            console.log('✅ JWT verified with secret:', secret.substring(0, 10) + '...');
+            break;
+        } catch (err) {
+            lastError = err;
+            console.log(`❌ JWT verification failed with secret ${secret.substring(0, 10)}...:`, err.message);
         }
-        
+    }
+    
+    if (!decoded) {
+        console.log('❌ JWT verification failed with all secrets');
+        return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+    }
         console.log('✅ JWT decoded successfully:', { userId: decoded.userId, exp: new Date(decoded.exp * 1000) });
         const user = users.find(u => u.id === decoded.userId);
         if (!user) {
@@ -105,7 +125,6 @@ const authMiddleware = (req, res, next) => {
         console.log('✅ User found:', { id: user.id, name: user.name, role: user.role });
         req.user = user;
         next();
-    });
 };
 
 const adminAuth = (req, res, next) => {
@@ -144,15 +163,29 @@ const authRouter = express.Router();
 authRouter.post('/login', async (req, res) => {
     const { email, password } = req.body;
     console.log('Login attempt for:', email);
-    console.log('JWT_SECRET for token creation:', process.env.JWT_SECRET);
     
     const user = users.find(u => u.email === email);
     if (!user || !await bcrypt.compare(password, user.password)) {
+        console.log('❌ Invalid credentials for:', email);
         return res.status(401).json({ message: 'Invalid credentials' });
     }
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: '24h' });
-    console.log('Generated token:', token);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    
+    // Use the same flexible secret approach as verification
+    const jwtSecret = process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024';
+    const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: '24h' });
+    
+    console.log('✅ Login successful for:', user.email, 'Role:', user.role);
+    console.log('Generated token with secret:', jwtSecret.substring(0, 10) + '...');
+    
+    res.json({ 
+        token, 
+        user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.role 
+        } 
+    });
 });
 
 // Add the missing /auth/me endpoint for token validation

@@ -174,8 +174,8 @@ router.post('/login', async (req, res) => {
 // Get current user
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    // req.user is populated by authMiddleware
-    const user = await User.findById(req.user.id).select('-password');
+    // req.user is populated by authMiddleware and already has all user data
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }

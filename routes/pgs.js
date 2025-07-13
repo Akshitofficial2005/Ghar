@@ -102,7 +102,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     console.log('=== PG CREATION DEBUG ===');
     console.log('User from auth middleware:', {
-      id: req.user.id,
+      id: req.user._id,
       role: req.user.role,
       email: req.user.email
     });
@@ -141,7 +141,7 @@ router.post('/', authMiddleware, async (req, res) => {
       images: images || [],
       contactNumber: contactNumber || '',
       rules: rules || [],
-      owner: req.user.id,
+      owner: req.user._id,
       isApproved: true, // Auto-approve for now
       isActive: true
     };
@@ -172,7 +172,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Get user's PGs (requires authentication)
 router.get('/user/my-pgs', authMiddleware, async (req, res) => {
   try {
-    const pgs = await PG.find({ owner: req.user.id })
+    const pgs = await PG.find({ owner: req.user._id })
       .sort({ createdAt: -1 });
 
     res.json({
@@ -201,7 +201,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user owns this PG
-    if (pg.owner.toString() !== req.user.id) {
+    if (pg.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'You can only update your own PG listings'
@@ -241,7 +241,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user owns this PG
-    if (pg.owner.toString() !== req.user.id) {
+    if (pg.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'You can only delete your own PG listings'

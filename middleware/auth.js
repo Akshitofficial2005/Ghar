@@ -25,7 +25,10 @@ const authMiddleware = async (req, res, next) => {
         }
 
         console.log('Auth middleware - User authenticated:', user._id, user.role);
-        req.user = user;
+        req.user = {
+            ...user.toObject(),
+            id: user._id  // Add compatibility property
+        };
         next();
     } catch (err) {
         console.error('Token verification error:', err);

@@ -200,15 +200,13 @@ authRouter.get('/me', authMiddleware, (req, res) => {
 app.use('/api/auth', authRouter);
 
 // 3. PG Routes (User Auth Required)
-const pgRouter = express.Router();
-pgRouter.use(authMiddleware);
-pgRouter.post('/', (req, res) => {
-    // Role check removed: any authenticated user can create a PG
-    const newPG = { id: `pg-${Date.now()}`, ...req.body, owner: req.user.id, status: 'pending', createdAt: new Date().toISOString() };
+
+// Public PG creation endpoint (no auth required)
+app.post('/api/pgs', (req, res) => {
+    const newPG = { id: `pg-${Date.now()}`, ...req.body, status: 'pending', createdAt: new Date().toISOString() };
     mockPGs.push(newPG);
     res.status(201).json(newPG);
 });
-app.use('/api/pgs', pgRouter);
 
 // 4. Admin Routes (Admin Auth Required)
 const adminRouter = express.Router();

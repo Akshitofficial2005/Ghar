@@ -56,16 +56,6 @@ let mockPGs = [
     { id: 'pg-2', name: 'Comfort Villa', location: { city: 'Mumbai' }, price: 15000, owner: 'owner-1', status: 'approved', isApproved: true, isActive: true, createdAt: new Date().toISOString() },
     { id: 'pg-3', name: 'Student Hub', location: { city: 'Delhi' }, price: 8000, owner: 'owner-2', status: 'rejected', isApproved: false, isActive: false, createdAt: new Date().toISOString() },
 ];
-// Public endpoint to list only approved PGs
-app.get('/api/pgs', (req, res) => {
-  try {
-    // Assuming PGs are stored in an array called 'pgs'
-    const approvedPGs = mockPGs.filter(pg => pg.isApproved === true);
-    res.json({ success: true, pgs: approvedPGs });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Error fetching approved PGs', error: err.message });
-  }
-});
 let mockBookings = [
     { id: 'booking-1', userId: 'user-1', pgId: 'pg-2', userName: 'Demo User', pgName: 'Comfort Villa', totalAmount: 15000, status: 'confirmed', checkIn: '2024-02-01', checkOut: '2024-08-01', createdAt: new Date().toISOString() }
 ];

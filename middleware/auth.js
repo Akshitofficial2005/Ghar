@@ -14,7 +14,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
         console.log('Auth middleware - Token decoded successfully for user:', decoded.userId);
         
         const user = await User.findById(decoded.userId).select('-password');

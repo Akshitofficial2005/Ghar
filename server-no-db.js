@@ -17,6 +17,38 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// 🚨 NUCLEAR CORS FIX - ABSOLUTE OVERRIDE 🚨
+app.use((req, res, next) => {
+  console.log(`🔥 NUCLEAR CORS: ${req.method} ${req.path} from ${req.headers.origin || 'unknown'}`);
+  
+  // FORCE ALL CORS HEADERS - NO CONDITIONS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', '*');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.header('Access-Control-Expose-Headers', '*');
+  
+  // NUCLEAR OPTIONS HANDLING
+  if (req.method === 'OPTIONS') {
+    console.log(`🚨 NUCLEAR OPTIONS: Responding immediately`);
+    res.status(204).end();
+    return;
+  }
+  
+  next();
+});
+
+// BACKUP CORS - Belt and suspenders
+app.use(cors({
+  origin: true, // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: ['*'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
 // --- In-Memory Data Store ---
 let users = [];
 let mockPGs = [
@@ -29,39 +61,9 @@ let mockBookings = [
 ];
 
 // --- Middleware ---
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 
-// ULTRA-AGGRESSIVE CORS Configuration - Force all headers
-app.use((req, res, next) => {
-  console.log(`📡 INCOMING REQUEST: ${req.method} ${req.path} from ${req.headers.origin || 'unknown'}`);
-  
-  // Force CORS headers for ALL requests
-  res.header('Access-Control-Allow-Origin', '*'); // Allow all origins temporarily
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma, X-HTTP-Method-Override');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
-  res.header('Access-Control-Expose-Headers', 'Content-Length, X-JSON');
-  
-  // Handle preflight requests immediately
-  if (req.method === 'OPTIONS') {
-    console.log(`✅ HANDLING PREFLIGHT: ${req.path} from ${req.headers.origin}`);
-    res.header('Content-Length', '0');
-    return res.status(204).send();
-  }
-  
-  console.log(`🔄 PROCESSING REQUEST: ${req.method} ${req.path}`);
-  next();
-});
-
-// Backup CORS using cors middleware
-app.use(cors({
-  origin: ['https://gharfr.vercel.app', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  optionsSuccessStatus: 200,
-}));
+// NUCLEAR CORS is now at the top - removing old middleware
 
 // Increase payload size limits for image uploads
 app.use(express.json({ limit: '50mb' }));

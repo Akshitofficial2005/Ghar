@@ -272,7 +272,8 @@ app.use((err, req, res, next) => {
 
 // --- Server Initialization ---
 const initializeServer = async () => {
-    console.log('🚀 STARTING GHAR BACKEND - NO DB VERSION (Updated for 401 fix)');
+    console.log('🚀 STARTING GHAR BACKEND - NO DB VERSION (CORS ULTRA FIX v2.0)');
+    console.log('🔧 Deployment timestamp:', new Date().toISOString());
     // Initialize demo accounts if users array is empty
     if (users.length === 0) {
         const salt = await bcrypt.genSalt(10);

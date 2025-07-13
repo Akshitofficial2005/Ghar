@@ -30,12 +30,26 @@ let mockBookings = [
 
 // --- Middleware ---
 app.use(helmet());
+
+// Enhanced CORS configuration to handle preflight requests properly
 app.use(cors({
   origin: ['https://gharfr.vercel.app', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Authorization'],
+  optionsSuccessStatus: 200, // For legacy browser support
+  preflightContinue: false, // Pass control to next handler
 }));
+
+// Explicit OPTIONS handler for all routes to ensure preflight requests work
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
 // Increase payload size limits for image uploads
 app.use(express.json({ limit: '50mb' }));
@@ -44,23 +58,37 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
 
 // --- Authentication Middleware ---
 const authMiddleware = (req, res, next) => {
+    // Skip auth for OPTIONS requests (preflight)
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+    
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Unauthorized: No token provided' });
-
-    console.log('JWT_SECRET:', process.env.JWT_SECRET);
-    console.log('Token received:', token);
+    
+    console.log(`\n🔍 AUTH MIDDLEWARE DEBUG - ${req.method} ${req.path}`);
+    console.log('Authorization header:', authHeader ? `Bearer ${authHeader.split(' ')[1]?.substring(0, 20)}...` : 'NOT FOUND');
+    console.log('JWT_SECRET available:', process.env.JWT_SECRET ? 'YES' : 'NO');
+    
+    if (!token) {
+        console.log('❌ No token provided');
+        return res.status(401).json({ message: 'Unauthorized: No token provided' });
+    }
     
     jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', (err, decoded) => {
         if (err) {
-            console.log('JWT verification error:', err.message);
+            console.log('❌ JWT verification error:', err.message);
             return res.status(401).json({ message: 'Unauthorized: Invalid token' });
         }
         
-        console.log('JWT decoded:', decoded);
+        console.log('✅ JWT decoded successfully:', { userId: decoded.userId, exp: new Date(decoded.exp * 1000) });
         const user = users.find(u => u.id === decoded.userId);
-        if (!user) return res.status(401).json({ message: 'Unauthorized: User not found' });
+        if (!user) {
+            console.log('❌ User not found in database:', decoded.userId);
+            return res.status(401).json({ message: 'Unauthorized: User not found' });
+        }
 
+        console.log('✅ User found:', { id: user.id, name: user.name, role: user.role });
         req.user = user;
         next();
     });

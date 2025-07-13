@@ -97,8 +97,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create new PG (requires authentication - simplified)
-router.post('/', authMiddleware, async (req, res) => {
+// Create new PG (public, no authentication required)
+router.post('/', async (req, res) => {
   try {
     console.log('=== PG CREATION DEBUG ===');
     console.log('User from auth middleware:', {

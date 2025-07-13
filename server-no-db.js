@@ -203,9 +203,7 @@ app.use('/api/auth', authRouter);
 const pgRouter = express.Router();
 pgRouter.use(authMiddleware);
 pgRouter.post('/', (req, res) => {
-    if (req.user.role !== 'owner' && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only owners or admins can create PGs' });
-    }
+    // Role check removed: any authenticated user can create a PG
     const newPG = { id: `pg-${Date.now()}`, ...req.body, owner: req.user.id, status: 'pending', createdAt: new Date().toISOString() };
     mockPGs.push(newPG);
     res.status(201).json(newPG);

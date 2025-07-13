@@ -48,9 +48,16 @@ const authMiddleware = (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'Unauthorized: No token provided' });
 
+    console.log('JWT_SECRET:', process.env.JWT_SECRET);
+    console.log('Token received:', token);
+    
     jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', (err, decoded) => {
-        if (err) return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+        if (err) {
+            console.log('JWT verification error:', err.message);
+            return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+        }
         
+        console.log('JWT decoded:', decoded);
         const user = users.find(u => u.id === decoded.userId);
         if (!user) return res.status(401).json({ message: 'Unauthorized: User not found' });
 
@@ -77,13 +84,27 @@ app.use('/api', publicRouter);
 const authRouter = express.Router();
 authRouter.post('/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log('Login attempt for:', email);
+    console.log('JWT_SECRET for token creation:', process.env.JWT_SECRET);
+    
     const user = users.find(u => u.email === email);
     if (!user || !await bcrypt.compare(password, user.password)) {
         return res.status(401).json({ message: 'Invalid credentials' });
     }
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: '24h' });
+    console.log('Generated token:', token);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 });
+
+// Add the missing /auth/me endpoint for token validation
+authRouter.get('/me', authMiddleware, (req, res) => {
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
 app.use('/api/auth', authRouter);
 
 // 3. PG Routes (User Auth Required)

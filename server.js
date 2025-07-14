@@ -116,6 +116,11 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
+  // Add explicit CORS headers
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  
   try {
     const { email, password } = req.body;
     console.log('Login attempt:', email);

@@ -81,22 +81,56 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth routes
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, role = 'user' } = req.body;
+    
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ name, email, password: hashedPassword, role });
+    await user.save();
+    
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024', { expiresIn: '7d' });
+    
+    res.status(201).json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Registration failed' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    console.log('Login attempt:', email);
     
-    if (!user || !await bcrypt.compare(password, user.password)) {
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.log('User not found:', email);
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.log('Password mismatch for:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024', { expiresIn: '7d' });
     
+    console.log('Login successful:', email);
     res.json({
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Login failed' });
   }
 });
@@ -173,8 +207,11 @@ app.get('/api/pgs', async (req, res) => {
 // Initialize admin user
 const initializeAdmin = async () => {
   try {
+    console.log('Checking for admin user...');
     const adminExists = await User.findOne({ email: 'admin@ghar.com' });
+    
     if (!adminExists) {
+      console.log('Creating admin user...');
       const hashedPassword = await bcrypt.hash('admin123', 10);
       const admin = new User({
         name: 'Admin User',
@@ -183,10 +220,26 @@ const initializeAdmin = async () => {
         role: 'admin'
       });
       await admin.save();
-      console.log('✅ Admin user created');
+      console.log('✅ Admin user created successfully');
+    } else {
+      console.log('✅ Admin user already exists');
+    }
+    
+    // Also create a test user for easier testing
+    const testUser = await User.findOne({ email: 'test@test.com' });
+    if (!testUser) {
+      const hashedPassword = await bcrypt.hash('test123', 10);
+      const user = new User({
+        name: 'Test User',
+        email: 'test@test.com',
+        password: hashedPassword,
+        role: 'owner'
+      });
+      await user.save();
+      console.log('✅ Test user created: test@test.com / test123');
     }
   } catch (error) {
-    console.error('Admin initialization error:', error);
+    console.error('❌ Admin initialization error:', error);
   }
 };
 
@@ -203,3 +256,6 @@ mongoose.connection.once('open', async () => {
 });
 
 console.log('Backend server running at http://localhost:' + PORT);
+console.log('🔑 Login credentials:');
+console.log('   Admin: admin@ghar.com / admin123');
+console.log('   Test: test@test.com / test123');

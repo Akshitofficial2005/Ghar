@@ -228,6 +228,16 @@ app.get('/api/pgs', async (req, res) => {
   }
 });
 
+// Admin endpoint for PGs
+app.get('/api/admin/pgs', async (req, res) => {
+  try {
+    const pgs = await PG.find({}).populate('owner', 'name email');
+    res.json({ success: true, pgs, total: pgs.length });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch admin PGs' });
+  }
+});
+
 // Initialize admin user
 const initializeAdmin = async () => {
   try {

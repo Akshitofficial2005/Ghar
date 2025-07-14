@@ -195,7 +195,9 @@ app.post('/api/pgs', async (req, res) => {
       success: true,
       message: 'PG listing created successfully!',
       data: newPG,
-      id: newPG._id
+      id: newPG._id,
+      _id: newPG._id,
+      pgId: newPG._id
     });
 
   } catch (error) {

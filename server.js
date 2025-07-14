@@ -185,8 +185,8 @@ app.post('/api/pgs', async (req, res) => {
       images: Array.isArray(req.body.images) ? req.body.images : [],
       roomTypes: Array.isArray(req.body.roomTypes) ? req.body.roomTypes : [],
       owner: null, // No owner for now
-      status: 'approved',
-      isApproved: true,
+      status: 'pending',
+      isApproved: false,
       isActive: true
     };
 
@@ -228,12 +228,35 @@ app.get('/api/pgs', async (req, res) => {
   }
 });
 
-// Admin endpoint for PGs
+// Admin endpoint for PGs with filtering
 app.get('/api/admin/pgs', async (req, res) => {
   try {
-    const pgs = await PG.find({}).populate('owner', 'name email');
-    res.json({ success: true, pgs, total: pgs.length });
+    const { status, page = 1, limit = 50 } = req.query;
+    let filter = {};
+    
+    if (status) {
+      filter.status = status;
+    }
+    
+    const pgs = await PG.find(filter)
+      .populate('owner', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+    
+    const total = await PG.countDocuments(filter);
+    
+    console.log(`Admin PGs query: status=${status}, found ${pgs.length} PGs`);
+    
+    res.json({ 
+      success: true, 
+      pgs, 
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
   } catch (error) {
+    console.error('Admin PGs error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch admin PGs' });
   }
 });

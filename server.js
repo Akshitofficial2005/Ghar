@@ -316,3 +316,37 @@ console.log('Backend server running at http://localhost:' + PORT);
 console.log('🔑 Login credentials:');
 console.log('   Admin: admin@ghar.com / admin123');
 console.log('   Test: test@test.com / test123');
+
+// Add missing admin endpoints
+app.get('/api/admin/dashboard', (req, res) => {
+  res.json({
+    totalUsers: users.length,
+    totalPGs: mockPGs.length,
+    pendingApprovals: mockPGs.filter(p => p.status === 'pending').length,
+    revenue: 0
+  });
+});
+
+app.get('/api/admin/users', (req, res) => {
+  res.json({ success: true, users: users.map(u => ({...u, password: undefined})), total: users.length });
+});
+
+app.get('/api/admin/bookings', (req, res) => {
+  res.json({ success: true, bookings: [], total: 0 });
+});
+
+app.get('/api/admin/system-alerts', (req, res) => {
+  res.json({ success: true, alerts: [], total: 0 });
+});
+
+app.get('/api/admin/analytics-users', (req, res) => {
+  res.json({ success: true, data: [] });
+});
+
+app.get('/api/admin/analytics-revenue', (req, res) => {
+  res.json({ success: true, data: [] });
+});
+
+app.get('/api/admin/analytics-bookings', (req, res) => {
+  res.json({ success: true, data: [] });
+});

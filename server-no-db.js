@@ -336,11 +336,6 @@ app.delete('/api/pg-submissions/:id', (req, res) => {
             message: 'Failed to delete submission' 
         });
     }
-});, data: newPG, id: newPG.id });
-    } catch (error) {
-        console.error('Error creating PG:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
 });
 
 // 4. Admin Routes (Admin Auth Required)

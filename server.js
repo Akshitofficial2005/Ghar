@@ -237,6 +237,28 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Token validation endpoint
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  try {
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PG routes
 app.get('/api/pgs', (req, res) => {
   try {

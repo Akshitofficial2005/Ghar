@@ -487,6 +487,25 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
+// Test endpoint to approve pg-2 directly
+app.get('/api/test/approve-pg2', (req, res) => {
+  try {
+    const pgIndex = mockPGs.findIndex(pg => pg.id === 'pg-2');
+    if (pgIndex !== -1) {
+      mockPGs[pgIndex].status = 'approved';
+      mockPGs[pgIndex].isApproved = true;
+      mockPGs[pgIndex].isActive = true;
+      mockPGs[pgIndex].approvedAt = new Date().toISOString();
+      console.log('✅ Test approval successful for pg-2');
+      res.json({ success: true, message: 'PG-2 approved via test endpoint', pg: mockPGs[pgIndex] });
+    } else {
+      res.json({ success: false, message: 'PG-2 not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Test approval failed' });
+  }
+});
+
 // PG Approval endpoint with debug logging
 app.put('/api/admin/pgs/:id/approve', (req, res) => {
   try {
@@ -528,6 +547,26 @@ app.put('/api/admin/pgs/:id/approve', (req, res) => {
   } catch (error) {
     console.error('PG approval error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Test endpoint to approve any PG by ID via GET
+app.get('/api/test/approve/:id', (req, res) => {
+  try {
+    const pgId = req.params.id;
+    const pgIndex = mockPGs.findIndex(pg => pg.id === pgId);
+    if (pgIndex !== -1) {
+      mockPGs[pgIndex].status = 'approved';
+      mockPGs[pgIndex].isApproved = true;
+      mockPGs[pgIndex].isActive = true;
+      mockPGs[pgIndex].approvedAt = new Date().toISOString();
+      console.log(`✅ Test approval successful for ${pgId}`);
+      res.json({ success: true, message: `${pgId} approved via test endpoint`, pg: mockPGs[pgIndex] });
+    } else {
+      res.json({ success: false, message: `${pgId} not found`, availableIds: mockPGs.map(pg => pg.id) });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Test approval failed' });
   }
 });
 

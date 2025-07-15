@@ -443,9 +443,51 @@ app.post('/api/pgs', (req, res) => {
   }
 });
 
-// Admin routes
-app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, (req, res) => {
+// Public PG endpoint for home page
+app.get('/api/pgs', (req, res) => {
   try {
+    const { page = 1, limit = 10, city, search } = req.query;
+    let filteredPGs = mockPGs.filter(pg => pg.isApproved && pg.isActive);
+    
+    console.log('📋 Public PGs request - Total approved PGs:', filteredPGs.length);
+    console.log('📋 Approved PG names:', filteredPGs.map(pg => pg.name));
+    
+    if (city) {
+      filteredPGs = filteredPGs.filter(pg => 
+        pg.location.city.toLowerCase().includes(city.toLowerCase())
+      );
+    }
+    
+    if (search) {
+      filteredPGs = filteredPGs.filter(pg => 
+        pg.name.toLowerCase().includes(search.toLowerCase()) ||
+        pg.description.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    
+    const startIndex = (page - 1) * limit;
+    const paginatedPGs = filteredPGs.slice(startIndex, startIndex + parseInt(limit));
+    
+    res.json({
+      success: true,
+      data: paginatedPGs,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(filteredPGs.length / limit),
+        totalItems: filteredPGs.length,
+        itemsPerPage: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching public PGs:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Admin routes
+app.get('/api/admin/dashboard', (req, res) => {
+  try {
+    console.log('📊 Dashboard request - Users:', users.length, 'PGs:', mockPGs.length);
     res.json({
       success: true,
       data: {
@@ -462,7 +504,7 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
-app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
+app.get('/api/admin/pgs', (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
     

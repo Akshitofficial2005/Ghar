@@ -474,6 +474,8 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
     const startIndex = (page - 1) * limit;
     const paginatedPGs = filteredPGs.slice(startIndex, startIndex + parseInt(limit));
     
+    console.log('📋 Returning PGs with IDs:', paginatedPGs.map(pg => ({ id: pg.id, name: pg.name })));
+    
     res.json({
       success: true,
       pgs: paginatedPGs,

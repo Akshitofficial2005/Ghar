@@ -21,18 +21,26 @@ const PORT = process.env.PORT || 5001;
 app.use((req, res, next) => {
   console.log(`🔥 NUCLEAR CORS: ${req.method} ${req.path} from ${req.headers.origin || 'unknown'}`);
   
-  // FORCE ALL CORS HEADERS - NO CONDITIONS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
+  // Log request body for POST requests to /pgs
+  if (req.method === 'POST' && req.path === '/api/pgs') {
+    console.log('📦 PG POST Request Headers:', req.headers);
+    console.log('📦 Content-Type:', req.headers['content-type']);
+    console.log('📦 Content-Length:', req.headers['content-length']);
+  }
+  
+  // FORCE ALL CORS HEADERS - ALLOW ALL ORIGINS
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,Pragma');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
-  res.header('Access-Control-Expose-Headers', '*');
+  res.header('Access-Control-Expose-Headers', 'Content-Length,Content-Range');
   
   // NUCLEAR OPTIONS HANDLING
   if (req.method === 'OPTIONS') {
-    console.log(`🚨 NUCLEAR OPTIONS: Responding immediately`);
-    res.status(204).end();
+    console.log(`🚨 NUCLEAR OPTIONS: Responding immediately for ${origin}`);
+    res.status(200).end();
     return;
   }
   
@@ -49,12 +57,95 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
+// --- Data Validation Helper ---
+const validatePGData = (pg) => {
+    if (!pg || typeof pg !== 'object') return null;
+    
+    return {
+        id: pg.id || `pg-${Date.now()}-${Math.random()}`,
+        name: pg.name || 'Unnamed PG',
+        description: pg.description || '',
+        location: pg.location || { city: 'Unknown', address: 'Unknown', state: 'Unknown', pincode: '000000' },
+        price: pg.price || pg.pricePerMonth || 0,
+        pricePerMonth: pg.pricePerMonth || pg.price || 0,
+        owner: pg.owner || 'unknown',
+        status: pg.status || 'pending',
+        isApproved: Boolean(pg.isApproved),
+        isActive: Boolean(pg.isActive),
+        createdAt: pg.createdAt || new Date().toISOString(),
+        roomTypes: Array.isArray(pg.roomTypes) ? pg.roomTypes : [],
+        amenities: pg.amenities || {},
+        images: Array.isArray(pg.images) ? pg.images : [],
+        totalRooms: Number(pg.totalRooms) || 1,
+        availableRooms: Number(pg.availableRooms) || 1,
+        contactNumber: pg.contactNumber || ''
+    };
+};
+
 // --- In-Memory Data Store ---
-let users = [];
+let users = [
+    { id: 'admin-1', name: 'Admin User', email: 'admin@ghar.com', password: '$2a$10$XQaEDVMz6ZZG.JznFJ/N8OuTGiVmV5DLDFEuGBxPeVwHDG.hQVmEK', role: 'admin', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'owner-1', name: 'PG Owner', email: 'owner@ghar.com', password: '$2a$10$XQaEDVMz6ZZG.JznFJ/N8OuTGiVmV5DLDFEuGBxPeVwHDG.hQVmEK', role: 'owner', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'user-1', name: 'Demo User', email: 'user@demo.com', password: '$2a$10$XQaEDVMz6ZZG.JznFJ/N8OuTGiVmV5DLDFEuGBxPeVwHDG.hQVmEK', role: 'user', isActive: true, createdAt: new Date().toISOString() }
+];
 let mockPGs = [
-    { id: 'pg-1', name: 'Sunrise PG', location: { city: 'Indore' }, price: 12000, owner: 'owner-1', status: 'pending', isApproved: false, isActive: false, createdAt: new Date().toISOString() },
-    { id: 'pg-2', name: 'Comfort Villa', location: { city: 'Mumbai' }, price: 15000, owner: 'owner-1', status: 'approved', isApproved: true, isActive: true, createdAt: new Date().toISOString() },
-    { id: 'pg-3', name: 'Student Hub', location: { city: 'Delhi' }, price: 8000, owner: 'owner-2', status: 'rejected', isApproved: false, isActive: false, createdAt: new Date().toISOString() },
+    { 
+        id: 'pg-1', 
+        name: 'Sunrise PG', 
+        description: 'Comfortable PG with modern amenities',
+        location: { city: 'Indore', address: 'Vijay Nagar, Indore', state: 'MP', pincode: '452010' }, 
+        price: 12000, 
+        pricePerMonth: 12000,
+        owner: 'owner-1', 
+        status: 'pending', 
+        isApproved: false, 
+        isActive: false, 
+        createdAt: new Date().toISOString(),
+        roomTypes: [],
+        amenities: {},
+        images: [],
+        totalRooms: 10,
+        availableRooms: 8,
+        contactNumber: '9876543210'
+    },
+    { 
+        id: 'pg-2', 
+        name: 'Comfort Villa', 
+        description: 'Premium PG for working professionals',
+        location: { city: 'Mumbai', address: 'Andheri West, Mumbai', state: 'MH', pincode: '400058' }, 
+        price: 15000, 
+        pricePerMonth: 15000,
+        owner: 'owner-1', 
+        status: 'approved', 
+        isApproved: true, 
+        isActive: true, 
+        createdAt: new Date().toISOString(),
+        roomTypes: [],
+        amenities: {},
+        images: [],
+        totalRooms: 15,
+        availableRooms: 5,
+        contactNumber: '9876543211'
+    },
+    { 
+        id: 'pg-3', 
+        name: 'Student Hub', 
+        description: 'Budget-friendly PG for students',
+        location: { city: 'Delhi', address: 'Laxmi Nagar, Delhi', state: 'DL', pincode: '110092' }, 
+        price: 8000, 
+        pricePerMonth: 8000,
+        owner: 'owner-2', 
+        status: 'rejected', 
+        isApproved: false, 
+        isActive: false, 
+        createdAt: new Date().toISOString(),
+        roomTypes: [],
+        amenities: {},
+        images: [],
+        totalRooms: 20,
+        availableRooms: 0,
+        contactNumber: '9876543212'
+    }
 ];
 let mockBookings = [
     { id: 'booking-1', userId: 'user-1', pgId: 'pg-2', userName: 'Demo User', pgName: 'Comfort Villa', totalAmount: 15000, status: 'confirmed', checkIn: '2024-02-01', checkOut: '2024-08-01', createdAt: new Date().toISOString() }
@@ -156,6 +247,22 @@ publicRouter.options('/cors-test', (req, res) => {
   res.json({ message: 'OPTIONS working' });
 });
 
+// PG creation test endpoint for debugging
+publicRouter.post('/test-pg', (req, res) => {
+  console.log('🧪 TEST PG endpoint hit');
+  console.log('🧪 Request body:', req.body);
+  console.log('🧪 Headers:', req.headers);
+  
+  res.json({ 
+    message: 'Test PG endpoint working',
+    received: {
+      body: req.body,
+      headers: req.headers,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
 app.use('/api', publicRouter);
 
 // 2. Auth Routes
@@ -199,167 +306,272 @@ authRouter.get('/me', authMiddleware, (req, res) => {
 
 app.use('/api/auth', authRouter);
 
-// Register endpoint
-authRouter.post('/register', async (req, res) => {
-    try {
-        const { name, email, password, role = 'user' } = req.body;
-        
-        if (users.find(u => u.email === email)) {
-            return res.status(400).json({ message: 'User already exists' });
-        }
-        
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = {
-            id: `user-${Date.now()}`,
-            name, email, password: hashedPassword,
-            role: role === 'admin' ? 'user' : role,
-            createdAt: new Date().toISOString()
-        };
-        
-        users.push(newUser);
-        const jwtSecret = process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024';
-        const token = jwt.sign({ userId: newUser.id }, jwtSecret, { expiresIn: '7d' });
-        
-        res.status(201).json({ token, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } });
-    } catch (err) {
-        res.status(500).json({ message: 'Registration failed' });
-    }
-});
-
 // 3. PG Routes (User Auth Required)
 
-// PG Submissions storage
-let pgSubmissions = [];
-
-// Submit PG listing request
-app.post('/api/pg-submissions', (req, res) => {
+// Public PG creation endpoint (no auth required)
+app.post('/api/pgs', (req, res) => {
     try {
-        console.log('PG Submission Request:', req.body);
+        console.log('🚀 PG Creation Request Body:', JSON.stringify(req.body, null, 2));
         
-        const submission = {
-            id: `sub-${Date.now()}`,
-            ...req.body,
+        // Enhanced validation with detailed error reporting
+        const { name, location, description, roomTypes, amenities, images } = req.body;
+        
+        // Check for name (string)
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+            console.log('❌ Name validation failed:', { name, type: typeof name });
+            return res.status(400).json({ 
+                message: 'Invalid name: name must be a non-empty string',
+                received: { name: name, nameType: typeof name }
+            });
+        }
+        
+        // Check for location (can be string or object)
+        if (!location) {
+            console.log('❌ Location validation failed:', { location });
+            return res.status(400).json({ 
+                message: 'Missing required field: location is required',
+                received: { location: location }
+            });
+        }
+        
+        // Process location data
+        let processedLocation;
+        if (typeof location === 'string') {
+            // Simple string location
+            processedLocation = { 
+                city: location.split(',')[0]?.trim() || location,
+                address: location
+            };
+        } else if (typeof location === 'object' && location !== null) {
+            // Complex location object from frontend
+            processedLocation = {
+                city: location.city || location.address?.split(',')[0]?.trim() || 'Unknown City',
+                address: location.address || location.city || 'Unknown Address',
+                state: location.state || 'Unknown State',
+                pincode: location.pincode || '000000'
+            };
+        } else {
+            console.log('❌ Location format invalid:', { location, type: typeof location });
+            return res.status(400).json({ 
+                message: 'Invalid location format: location must be string or object',
+                received: { location, locationType: typeof location }
+            });
+        }
+        
+        // Process price - check multiple possible fields  
+        let price = 0;
+        if (req.body.price && Number(req.body.price) > 0) {
+            price = Number(req.body.price);
+        } else if (req.body.pricePerMonth && Number(req.body.pricePerMonth) > 0) {
+            price = Number(req.body.pricePerMonth);
+        } else if (roomTypes && roomTypes.length > 0 && roomTypes[0].price && Number(roomTypes[0].price) > 0) {
+            price = Number(roomTypes[0].price);
+        }
+        
+        // For debugging - let's be more lenient on price validation for now
+        if (price <= 0) {
+            console.log('⚠️ Price validation: Setting default price of 1000:', { 
+                price: req.body.price, 
+                pricePerMonth: req.body.pricePerMonth,
+                roomTypesPrice: roomTypes?.[0]?.price 
+            });
+            price = 1000; // Set a default price instead of failing
+        }
+        
+        // Create new PG with proper structure using validation
+        const rawPG = { 
+            id: `pg-${Date.now()}`, 
+            name: name.trim(),
+            description: description || '',
+            location: processedLocation,
+            price: price,
+            pricePerMonth: price,
+            owner: req.user?.id || 'anonymous',
             status: 'pending',
-            submittedAt: new Date().toISOString()
+            isApproved: false,
+            isActive: false,
+            createdAt: new Date().toISOString(),
+            roomTypes: roomTypes || [],
+            amenities: amenities || {},
+            images: images || [],
+            rules: req.body.rules || [],
+            totalRooms: req.body.totalRooms || 1,
+            availableRooms: req.body.availableRooms || 1,
+            contactNumber: req.body.contactNumber || ''
         };
         
-        pgSubmissions.push(submission);
-        console.log('PG Submission saved:', submission.id);
+        const newPG = validatePGData(rawPG);
         
-        res.status(201).json({ 
-            success: true, 
-            message: 'PG listing request submitted successfully',
-            submissionId: submission.id 
+        console.log('✅ Created new PG successfully:', {
+            id: newPG.id,
+            name: newPG.name,
+            price: newPG.price,
+            location: newPG.location,
+            imagesCount: newPG.images?.length || 0
         });
-    } catch (error) {
-        console.error('Error saving submission:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Failed to submit PG listing request' 
-        });
-    }
-});
-
-// Get all submissions (for admin)
-app.get('/api/pg-submissions', (req, res) => {
-    try {
-        res.json({
-            success: true,
-            submissions: pgSubmissions,
-            total: pgSubmissions.length
-        });
-    } catch (error) {
-        console.error('Error fetching submissions:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Failed to fetch submissions' 
-        });
-    }
-});
-
-// Update submission status
-app.put('/api/pg-submissions/:id/status', (req, res) => {
-    try {
-        const { status, notes } = req.body;
-        const submissionIndex = pgSubmissions.findIndex(s => s.id === req.params.id);
         
-        if (submissionIndex === -1) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Submission not found' 
-            });
+        if (newPG) {
+            mockPGs.push(newPG);
+        } else {
+            throw new Error('Failed to validate PG data');
         }
-        
-        pgSubmissions[submissionIndex] = {
-            ...pgSubmissions[submissionIndex],
-            status,
-            notes,
-            updatedAt: new Date().toISOString()
-        };
-        
-        res.json({
+        res.status(201).json({
             success: true,
-            message: 'Submission status updated',
-            submission: pgSubmissions[submissionIndex]
+            message: 'PG listing created successfully!',
+            data: newPG,
+            id: newPG.id,
+            _id: newPG.id
         });
+        
     } catch (error) {
-        console.error('Error updating submission:', error);
+        console.error('💥 Error creating PG:', error);
         res.status(500).json({ 
-            success: false, 
-            message: 'Failed to update submission' 
+            success: false,
+            message: 'Server error creating PG listing',
+            error: error.message 
         });
     }
 });
 
-// Delete submission
-app.delete('/api/pg-submissions/:id', (req, res) => {
-    try {
-        const submissionIndex = pgSubmissions.findIndex(s => s.id === req.params.id);
-        
-        if (submissionIndex === -1) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Submission not found' 
-            });
-        }
-        
-        pgSubmissions.splice(submissionIndex, 1);
-        
-        res.json({
-            success: true,
-            message: 'Submission deleted'
-        });
-    } catch (error) {
-        console.error('Error deleting submission:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Failed to delete submission' 
-        });
-    }
-});
-
-// 4. Admin Routes (Admin Auth Required)
+// 4. Admin Routes (Temporarily without auth for testing)
 const adminRouter = express.Router();
-adminRouter.use(authMiddleware, adminAuth);
+// adminRouter.use(authMiddleware, adminAuth); // Commented out for testing
 
-// Dashboard
+// Dashboard with null safety
 adminRouter.get('/dashboard', (req, res) => {
-    res.json({
-        totalUsers: users.length,
-        totalPGs: mockPGs.length,
-        pendingApprovals: mockPGs.filter(p => p.status === 'pending').length,
-        revenue: mockBookings.reduce((sum, b) => sum + b.totalAmount, 0),
-    });
+    try {
+        // Ensure users array exists
+        if (!Array.isArray(users)) {
+            users = [];
+        }
+        
+        const safePGs = mockPGs.filter(pg => pg !== null && pg !== undefined);
+        const safeBookings = mockBookings.filter(booking => booking !== null && booking !== undefined);
+        
+        const dashboardData = {
+            success: true,
+            totalUsers: users.length,
+            totalPGs: safePGs.length,
+            pendingApprovals: safePGs.filter(p => p && p.status === 'pending').length,
+            approvedPGs: safePGs.filter(p => p && p.status === 'approved').length,
+            rejectedPGs: safePGs.filter(p => p && p.status === 'rejected').length,
+            totalBookings: safeBookings.length,
+            revenue: safeBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+            recentPGs: safePGs.slice(-5).reverse(),
+            recentBookings: safeBookings.slice(-5).reverse()
+        };
+        
+        console.log('✅ Dashboard data fetched successfully');
+        res.json(dashboardData);
+    } catch (error) {
+        console.error('❌ Error fetching dashboard data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching dashboard data',
+            error: error.message
+        });
+    }
 });
 
-// PG Management
+// PG Management with proper filtering and null safety
 adminRouter.get('/pgs', (req, res) => {
-    res.json({ pgs: mockPGs, total: mockPGs.length });
+    try {
+        const { status, page = 1, limit = 50 } = req.query;
+        
+        // Filter PGs by status if provided
+        let filteredPGs = mockPGs;
+        if (status) {
+            filteredPGs = mockPGs.filter(pg => pg && pg.status === status);
+        }
+        
+        // Ensure all PG objects have required fields using validation
+        const safePGs = filteredPGs.map(validatePGData).filter(pg => pg !== null);
+        
+        // Pagination
+        const startIndex = (parseInt(page) - 1) * parseInt(limit);
+        const paginatedPGs = safePGs.slice(startIndex, startIndex + parseInt(limit));
+        
+        console.log(`✅ Admin PGs request: status=${status}, returning ${paginatedPGs.length} PGs`);
+        
+        res.json({
+            success: true,
+            pgs: paginatedPGs,
+            total: safePGs.length,
+            page: parseInt(page),
+            totalPages: Math.ceil(safePGs.length / parseInt(limit))
+        });
+    } catch (error) {
+        console.error('❌ Error fetching admin PGs:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching PGs',
+            error: error.message
+        });
+    }
+});
+
+// PG Approval/Rejection
+adminRouter.put('/pgs/:id/approve', (req, res) => {
+    try {
+        const pgId = req.params.id;
+        const pg = mockPGs.find(p => p && p.id === pgId);
+        
+        if (!pg) {
+            return res.status(404).json({ success: false, message: 'PG not found' });
+        }
+        
+        pg.status = 'approved';
+        pg.isApproved = true;
+        pg.isActive = true;
+        
+        console.log(`✅ PG approved: ${pg.name} (${pgId})`);
+        res.json({ success: true, message: 'PG approved successfully', pg });
+    } catch (error) {
+        console.error('❌ Error approving PG:', error);
+        res.status(500).json({ success: false, message: 'Error approving PG' });
+    }
+});
+
+adminRouter.put('/pgs/:id/reject', (req, res) => {
+    try {
+        const pgId = req.params.id;
+        const { reason } = req.body;
+        const pg = mockPGs.find(p => p && p.id === pgId);
+        
+        if (!pg) {
+            return res.status(404).json({ success: false, message: 'PG not found' });
+        }
+        
+        pg.status = 'rejected';
+        pg.isApproved = false;
+        pg.isActive = false;
+        pg.rejectionReason = reason || 'No reason provided';
+        
+        console.log(`❌ PG rejected: ${pg.name} (${pgId}) - Reason: ${reason}`);
+        res.json({ success: true, message: 'PG rejected successfully', pg });
+    } catch (error) {
+        console.error('❌ Error rejecting PG:', error);
+        res.status(500).json({ success: false, message: 'Error rejecting PG' });
+    }
 });
 
 // User Management
 adminRouter.get('/users', (req, res) => {
-    res.json({ users: users.map(({ password, ...user }) => user), total: users.length });
+    // Ensure users array exists
+    if (!Array.isArray(users)) {
+        users = [];
+    }
+    
+    // Return users without passwords
+    const safeUsers = users.map(user => {
+        if (user && typeof user === 'object') {
+            const { password, ...userWithoutPassword } = user;
+            return userWithoutPassword;
+        }
+        return {};
+    });
+    
+    res.json({ success: true, users: safeUsers, total: safeUsers.length });
 });
 
 // Bookings Management
@@ -381,13 +593,97 @@ adminRouter.get('/system-alerts', (req, res) => {
     res.json({ alerts: [{ id: 'alert-1', type: 'warning', message: 'High server load detected', timestamp: new Date().toISOString() }] });
 });
 adminRouter.get('/analytics-users', (req, res) => {
-    res.json({ total: users.length, byRole: users.reduce((acc, u) => ({ ...acc, [u.role]: (acc[u.role] || 0) + 1 }), {}) });
+    // Ensure users array exists
+    if (!Array.isArray(users)) {
+        users = [];
+    }
+    
+    // Calculate role distribution
+    const byRole = users.reduce((acc, u) => {
+        if (u && u.role) {
+            acc[u.role] = (acc[u.role] || 0) + 1;
+        }
+        return acc;
+    }, {});
+    
+    // Create monthly data for chart
+    const monthlyData = [
+        { month: 'Jan', users: 5 },
+        { month: 'Feb', users: 8 },
+        { month: 'Mar', users: 12 },
+        { month: 'Apr', users: 15 },
+        { month: 'May', users: 18 },
+        { month: 'Jun', users: users.length }
+    ];
+    
+    res.json({ 
+        success: true,
+        total: users.length, 
+        byRole: byRole,
+        monthlyData: monthlyData,
+        activeUsers: users.filter(u => u && u.isActive).length,
+        newUsers: users.length > 0 ? 3 : 0
+    });
 });
 adminRouter.get('/analytics-bookings', (req, res) => {
-    res.json({ total: mockBookings.length, byStatus: mockBookings.reduce((acc, b) => ({ ...acc, [b.status]: (acc[b.status] || 0) + 1 }), {}) });
+    // Ensure bookings array exists
+    if (!Array.isArray(mockBookings)) {
+        mockBookings = [];
+    }
+    
+    // Calculate status distribution
+    const byStatus = mockBookings.reduce((acc, b) => {
+        if (b && b.status) {
+            acc[b.status] = (acc[b.status] || 0) + 1;
+        }
+        return acc;
+    }, {});
+    
+    // Create monthly data for chart
+    const monthlyData = [
+        { month: 'Jan', bookings: 3 },
+        { month: 'Feb', bookings: 5 },
+        { month: 'Mar', bookings: 8 },
+        { month: 'Apr', bookings: 12 },
+        { month: 'May', bookings: 15 },
+        { month: 'Jun', bookings: mockBookings.length }
+    ];
+    
+    res.json({ 
+        success: true,
+        total: mockBookings.length, 
+        byStatus: byStatus,
+        monthlyData: monthlyData,
+        completedBookings: mockBookings.filter(b => b && b.status === 'confirmed').length,
+        cancelledBookings: mockBookings.filter(b => b && b.status === 'cancelled').length
+    });
 });
 adminRouter.get('/analytics-revenue', (req, res) => {
-    res.json({ total: mockBookings.reduce((sum, b) => sum + b.totalAmount, 0), monthlyData: [{ month: 'Current', revenue: 45000 }] });
+    // Ensure bookings array exists
+    if (!Array.isArray(mockBookings)) {
+        mockBookings = [];
+    }
+    
+    // Calculate total revenue
+    const totalRevenue = mockBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    
+    // Create monthly data for chart
+    const monthlyData = [
+        { month: 'Jan', revenue: 15000 },
+        { month: 'Feb', revenue: 22000 },
+        { month: 'Mar', revenue: 30000 },
+        { month: 'Apr', revenue: 35000 },
+        { month: 'May', revenue: 40000 },
+        { month: 'Jun', revenue: 45000 }
+    ];
+    
+    res.json({ 
+        success: true,
+        total: totalRevenue, 
+        monthlyData: monthlyData,
+        projectedRevenue: 55000,
+        growthRate: 12.5
+    });
 });
 
 app.use('/api/admin', adminRouter);

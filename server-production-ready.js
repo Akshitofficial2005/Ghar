@@ -275,6 +275,19 @@ app.get('/api/pgs', (req, res) => {
   }
 });
 
+app.get('/api/pgs/:id', (req, res) => {
+  try {
+    const pg = mockPGs.find(p => p.id === req.params.id);
+    if (!pg) {
+      return res.status(404).json({ success: false, message: 'PG not found' });
+    }
+    res.json({ success: true, data: pg });
+  } catch (error) {
+    console.error('Error fetching PG:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // 🔥 FIXED PG CREATION ENDPOINT
 app.post('/api/pgs', (req, res) => {
   try {
@@ -383,8 +396,15 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
     
     res.json({
       success: true,
-      pgs: paginatedPGs,
-      total: filteredPGs.length
+      data: {
+        pgs: paginatedPGs,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(filteredPGs.length / limit),
+          totalItems: filteredPGs.length,
+          itemsPerPage: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     console.error('Admin PGs error:', error);
@@ -409,8 +429,15 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, (req, res) => {
     
     res.json({
       success: true,
-      users: safeUsers,
-      total: filteredUsers.length
+      data: {
+        users: safeUsers,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(filteredUsers.length / limit),
+          totalItems: filteredUsers.length,
+          itemsPerPage: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     console.error('Admin users error:', error);
@@ -432,8 +459,15 @@ app.get('/api/admin/bookings', authMiddleware, adminMiddleware, (req, res) => {
     
     res.json({
       success: true,
-      bookings: paginatedBookings,
-      total: filteredBookings.length
+      data: {
+        bookings: paginatedBookings,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(filteredBookings.length / limit),
+          totalItems: filteredBookings.length,
+          itemsPerPage: parseInt(limit)
+        }
+      }
     });
   } catch (error) {
     console.error('Admin bookings error:', error);
@@ -472,8 +506,8 @@ app.get('/api/admin/analytics-revenue', authMiddleware, adminMiddleware, (req, r
       success: true,
       data: [
         { name: 'Total Revenue', value: totalRevenue },
-        { name: 'This Month', value: Math.floor(totalRevenue * 0.3) },
-        { name: 'Last Month', value: Math.floor(totalRevenue * 0.7) }
+        { name: 'This Month', value: totalRevenue * 0.3 },
+        { name: 'Last Month', value: totalRevenue * 0.7 }
       ]
     });
   } catch (error) {
@@ -508,10 +542,10 @@ app.get('/api/admin/system-alerts', authMiddleware, adminMiddleware, (req, res) 
   try {
     res.json({
       success: true,
-      alerts: [
+      data: [
         {
           id: 'alert-1',
-          type: 'info',
+          type: 'warning',
           message: 'System is running normally',
           timestamp: new Date().toISOString(),
           resolved: false
@@ -522,6 +556,23 @@ app.get('/api/admin/system-alerts', authMiddleware, adminMiddleware, (req, res) 
     console.error('System alerts error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('Global error handler:', error);
+  res.status(500).json({ 
+    success: false, 
+    message: 'An unexpected error occurred' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    success: false, 
+    message: 'Route not found' 
+  });
 });
 
 // Start server

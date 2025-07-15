@@ -468,9 +468,23 @@ app.get('/api/pgs', (req, res) => {
     const startIndex = (page - 1) * limit;
     const paginatedPGs = filteredPGs.slice(startIndex, startIndex + parseInt(limit));
     
+    // Format PGs for frontend compatibility
+    const formattedPGs = paginatedPGs.map(pg => ({
+      ...pg,
+      // Flatten location to prevent React rendering errors
+      locationText: `${pg.location.address}, ${pg.location.city}, ${pg.location.state}`,
+      city: pg.location.city,
+      address: pg.location.address,
+      state: pg.location.state,
+      pincode: pg.location.pincode,
+      // Ensure price is a number
+      monthlyPrice: pg.price?.monthly || pg.price || 0,
+      securityDeposit: pg.price?.security || 0,
+    }));
+    
     res.json({
       success: true,
-      data: paginatedPGs,
+      data: formattedPGs,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(filteredPGs.length / limit),
@@ -527,11 +541,17 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
     const startIndex = (page - 1) * limit;
     const paginatedPGs = filteredPGs.slice(startIndex, startIndex + parseInt(limit));
     
-    // Ensure each PG has proper ID structure for frontend
+    // Ensure each PG has proper ID structure and flattened location for frontend
     const formattedPGs = paginatedPGs.map(pg => ({
       ...pg,
       _id: pg.id, // Add _id as alias for compatibility
       pgId: pg.id, // Add pgId as alias for compatibility
+      // Flatten location to prevent React rendering errors
+      locationText: `${pg.location.address}, ${pg.location.city}, ${pg.location.state}`,
+      city: pg.location.city,
+      address: pg.location.address,
+      state: pg.location.state,
+      pincode: pg.location.pincode,
     }));
     
     res.json({

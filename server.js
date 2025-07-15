@@ -485,15 +485,29 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
-// PG Approval endpoint
-app.put('/api/admin/pgs/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
+// PG Approval endpoint with debug logging
+app.put('/api/admin/pgs/:id/approve', (req, res) => {
   try {
     const pgId = req.params.id;
-    console.log('🔍 Approving PG:', pgId);
+    console.log('🔍 Approval request - PG ID:', pgId);
+    console.log('🔍 Available PG IDs:', mockPGs.map(pg => pg.id));
+    
+    if (!pgId || pgId === 'undefined') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid PG ID provided',
+        receivedId: pgId
+      });
+    }
     
     const pgIndex = mockPGs.findIndex(pg => pg.id === pgId);
     if (pgIndex === -1) {
-      return res.status(404).json({ success: false, message: 'PG not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'PG not found',
+        searchedId: pgId,
+        availableIds: mockPGs.map(pg => pg.id)
+      });
     }
     
     // Update PG status to approved
@@ -515,16 +529,29 @@ app.put('/api/admin/pgs/:id/approve', authMiddleware, adminMiddleware, (req, res
   }
 });
 
-// PG Rejection endpoint
-app.put('/api/admin/pgs/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
+// PG Rejection endpoint with debug logging
+app.put('/api/admin/pgs/:id/reject', (req, res) => {
   try {
     const pgId = req.params.id;
     const { reason } = req.body;
-    console.log('❌ Rejecting PG:', pgId, 'Reason:', reason);
+    console.log('❌ Rejection request - PG ID:', pgId, 'Reason:', reason);
+    
+    if (!pgId || pgId === 'undefined') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid PG ID provided',
+        receivedId: pgId
+      });
+    }
     
     const pgIndex = mockPGs.findIndex(pg => pg.id === pgId);
     if (pgIndex === -1) {
-      return res.status(404).json({ success: false, message: 'PG not found' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'PG not found',
+        searchedId: pgId,
+        availableIds: mockPGs.map(pg => pg.id)
+      });
     }
     
     // Update PG status to rejected

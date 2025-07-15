@@ -151,7 +151,7 @@ const initializeDemoData = async () => {
       },
       price: { monthly: 12000, security: 6000 },
       amenities: ['WiFi', 'Food', 'Laundry', 'Security'],
-      images: ['https://via.placeholder.com/400x300/007AFF/FFFFFF?text=Sunrise+PG'],
+      images: ['https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=400&h=300&fit=crop'],
       contact: {
         owner: 'PG Owner',
         phone: '9876543210',
@@ -188,7 +188,7 @@ const initializeDemoData = async () => {
       },
       price: { monthly: 8000, security: 4000 },
       amenities: ['WiFi', 'Security', 'Parking'],
-      images: ['https://via.placeholder.com/400x300/28A745/FFFFFF?text=Student+Hub'],
+      images: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop'],
       contact: {
         owner: 'Student Hub Owner',
         phone: '9876543211',
@@ -385,16 +385,39 @@ app.post('/api/pgs', (req, res) => {
       id: `pg-${Date.now()}`,
       name: name.trim(),
       description: description || 'No description provided',
-      location: processedLocation,
-      price: Number(price) || 1000,
+      location: {
+        ...processedLocation,
+        coordinates: { latitude: 0, longitude: 0 }
+      },
+      price: {
+        monthly: Number(price) || 1000,
+        security: Math.floor((Number(price) || 1000) * 0.5)
+      },
+      contact: {
+        owner: req.body.ownerName || 'PG Owner',
+        phone: req.body.contactNumber || '0000000000',
+        email: req.body.contactEmail || 'owner@example.com'
+      },
+      availability: {
+        totalRooms: Number(req.body.totalRooms) || 1,
+        availableRooms: Number(req.body.availableRooms) || 1
+      },
+      rating: 0,
+      reviews: 0,
+      verified: false,
+      roomTypes: Array.isArray(req.body.roomTypes) && req.body.roomTypes.length > 0
+        ? req.body.roomTypes
+        : [{ type: 'single', price: Number(price) || 1000, availableRooms: 1 }],
       owner: req.user?.id || 'anonymous',
       status: 'pending',
       isApproved: false,
       isActive: false,
       createdAt: new Date().toISOString(),
-      // Optional fields
-      amenities: req.body.amenities || {},
-      images: req.body.images || [],
+      // Optional fields with proper structure
+      amenities: Array.isArray(req.body.amenities) ? req.body.amenities : [],
+      images: Array.isArray(req.body.images) && req.body.images.length > 0 
+        ? req.body.images 
+        : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&h=300&fit=crop'],
       rules: req.body.rules || [],
       totalRooms: Number(req.body.totalRooms) || 1,
       availableRooms: Number(req.body.availableRooms) || 1,

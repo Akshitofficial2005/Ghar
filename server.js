@@ -485,47 +485,68 @@ app.get('/api/pgs', (req, res) => {
 });
 
 // Admin routes
-app.get('/api/admin/dashboard', (req, res) => {
+app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, (req, res) => {
   try {
-    console.log('📊 Dashboard request - Users:', users.length, 'PGs:', mockPGs.length);
+    const pendingPGs = mockPGs.filter(pg => pg.status === 'pending');
+    const approvedPGs = mockPGs.filter(pg => pg.status === 'approved');
+    const rejectedPGs = mockPGs.filter(pg => pg.status === 'rejected');
+    const totalRevenue = mockBookings.reduce((sum, booking) => sum + (booking.totalAmount || 0), 0);
+    
     res.json({
       success: true,
       data: {
         totalUsers: users.length,
         totalPGs: mockPGs.length,
         totalBookings: mockBookings.length,
-        pendingApprovals: mockPGs.filter(pg => pg.status === 'pending').length,
-        revenue: mockBookings.reduce((sum, booking) => sum + booking.totalAmount, 0)
+        pendingApprovals: pendingPGs.length,
+        approvedPGs: approvedPGs.length,
+        rejectedPGs: rejectedPGs.length,
+        revenue: totalRevenue,
+        recentPGs: mockPGs.slice(-5).reverse(),
+        systemStatus: 'operational'
       }
     });
   } catch (error) {
     console.error('Dashboard error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error loading dashboard data' 
+    });
   }
 });
 
-app.get('/api/admin/pgs', (req, res) => {
+app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 50, status } = req.query;
     
     let filteredPGs = mockPGs;
-    if (status) {
+    if (status && status !== 'all') {
       filteredPGs = mockPGs.filter(pg => pg.status === status);
     }
     
     const startIndex = (page - 1) * limit;
     const paginatedPGs = filteredPGs.slice(startIndex, startIndex + parseInt(limit));
     
-    console.log('📋 Returning PGs with IDs:', paginatedPGs.map(pg => ({ id: pg.id, name: pg.name })));
+    // Ensure each PG has proper ID structure for frontend
+    const formattedPGs = paginatedPGs.map(pg => ({
+      ...pg,
+      _id: pg.id, // Add _id as alias for compatibility
+      pgId: pg.id, // Add pgId as alias for compatibility
+    }));
     
     res.json({
       success: true,
-      pgs: paginatedPGs,
-      total: filteredPGs.length
+      pgs: formattedPGs,
+      total: filteredPGs.length,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(filteredPGs.length / parseInt(limit))
     });
   } catch (error) {
     console.error('Admin PGs error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching PG listings' 
+    });
   }
 });
 
@@ -548,17 +569,15 @@ app.get('/api/test/approve-pg2', (req, res) => {
   }
 });
 
-// PG Approval endpoint with debug logging
-app.put('/api/admin/pgs/:id/approve', (req, res) => {
+// Production PG Approval endpoint
+app.put('/api/admin/pgs/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const pgId = req.params.id;
-    console.log('🔍 Approval request - PG ID:', pgId);
-    console.log('🔍 Available PG IDs:', mockPGs.map(pg => pg.id));
     
-    if (!pgId || pgId === 'undefined') {
+    if (!pgId || pgId === 'undefined' || pgId === 'null') {
       return res.status(400).json({ 
         success: false, 
-        message: 'Invalid PG ID provided',
+        message: 'Invalid PG ID provided. Please ensure the PG ID is correctly passed in the request.',
         receivedId: pgId
       });
     }
@@ -567,9 +586,8 @@ app.put('/api/admin/pgs/:id/approve', (req, res) => {
     if (pgIndex === -1) {
       return res.status(404).json({ 
         success: false, 
-        message: 'PG not found',
-        searchedId: pgId,
-        availableIds: mockPGs.map(pg => pg.id)
+        message: 'PG not found with the provided ID',
+        searchedId: pgId
       });
     }
     
@@ -578,17 +596,28 @@ app.put('/api/admin/pgs/:id/approve', (req, res) => {
     mockPGs[pgIndex].isApproved = true;
     mockPGs[pgIndex].isActive = true;
     mockPGs[pgIndex].approvedAt = new Date().toISOString();
+    mockPGs[pgIndex].approvedBy = req.user.id;
     
-    console.log('✅ PG approved:', mockPGs[pgIndex].name);
+    console.log(`✅ PG approved: ${mockPGs[pgIndex].name} by ${req.user.name}`);
     
     res.json({
       success: true,
-      message: 'PG approved successfully',
-      pg: mockPGs[pgIndex]
+      message: 'PG approved successfully and is now live for bookings',
+      pg: {
+        id: mockPGs[pgIndex].id,
+        name: mockPGs[pgIndex].name,
+        status: mockPGs[pgIndex].status,
+        isApproved: mockPGs[pgIndex].isApproved,
+        isActive: mockPGs[pgIndex].isActive,
+        approvedAt: mockPGs[pgIndex].approvedAt
+      }
     });
   } catch (error) {
     console.error('PG approval error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error during PG approval process' 
+    });
   }
 });
 
@@ -612,18 +641,24 @@ app.get('/api/test/approve/:id', (req, res) => {
   }
 });
 
-// PG Rejection endpoint with debug logging
-app.put('/api/admin/pgs/:id/reject', (req, res) => {
+// Production PG Rejection endpoint
+app.put('/api/admin/pgs/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const pgId = req.params.id;
     const { reason } = req.body;
-    console.log('❌ Rejection request - PG ID:', pgId, 'Reason:', reason);
     
-    if (!pgId || pgId === 'undefined') {
+    if (!pgId || pgId === 'undefined' || pgId === 'null') {
       return res.status(400).json({ 
         success: false, 
-        message: 'Invalid PG ID provided',
+        message: 'Invalid PG ID provided. Please ensure the PG ID is correctly passed in the request.',
         receivedId: pgId
+      });
+    }
+    
+    if (!reason || reason.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Rejection reason is required'
       });
     }
     
@@ -631,9 +666,8 @@ app.put('/api/admin/pgs/:id/reject', (req, res) => {
     if (pgIndex === -1) {
       return res.status(404).json({ 
         success: false, 
-        message: 'PG not found',
-        searchedId: pgId,
-        availableIds: mockPGs.map(pg => pg.id)
+        message: 'PG not found with the provided ID',
+        searchedId: pgId
       });
     }
     
@@ -642,18 +676,29 @@ app.put('/api/admin/pgs/:id/reject', (req, res) => {
     mockPGs[pgIndex].isApproved = false;
     mockPGs[pgIndex].isActive = false;
     mockPGs[pgIndex].rejectedAt = new Date().toISOString();
-    mockPGs[pgIndex].rejectionReason = reason || 'No reason provided';
+    mockPGs[pgIndex].rejectionReason = reason.trim();
+    mockPGs[pgIndex].rejectedBy = req.user.id;
     
-    console.log('❌ PG rejected:', mockPGs[pgIndex].name);
+    console.log(`❌ PG rejected: ${mockPGs[pgIndex].name} by ${req.user.name} - Reason: ${reason}`);
     
     res.json({
       success: true,
       message: 'PG rejected successfully',
-      pg: mockPGs[pgIndex]
+      pg: {
+        id: mockPGs[pgIndex].id,
+        name: mockPGs[pgIndex].name,
+        status: mockPGs[pgIndex].status,
+        isApproved: mockPGs[pgIndex].isApproved,
+        rejectionReason: mockPGs[pgIndex].rejectionReason,
+        rejectedAt: mockPGs[pgIndex].rejectedAt
+      }
     });
   } catch (error) {
     console.error('PG rejection error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error during PG rejection process' 
+    });
   }
 });
 

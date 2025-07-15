@@ -137,13 +137,37 @@ const initializeDemoData = async () => {
       createdAt: new Date().toISOString()
     });
     
-    // Create demo PGs
+    // Create demo PGs with complete structure
     mockPGs.push({
       id: 'pg-1',
       name: 'Sunrise PG',
       description: 'Comfortable PG for students',
-      location: { city: 'Mumbai', address: 'Andheri West, Mumbai' },
-      price: 12000,
+      location: { 
+        city: 'Mumbai', 
+        address: 'Andheri West, Mumbai',
+        state: 'Maharashtra',
+        pincode: '400058',
+        coordinates: { latitude: 19.1136, longitude: 72.8697 }
+      },
+      price: { monthly: 12000, security: 6000 },
+      amenities: ['WiFi', 'Food', 'Laundry', 'Security'],
+      images: ['https://via.placeholder.com/400x300/007AFF/FFFFFF?text=Sunrise+PG'],
+      contact: {
+        owner: 'PG Owner',
+        phone: '9876543210',
+        email: 'owner@ghar.com'
+      },
+      availability: {
+        totalRooms: 10,
+        availableRooms: 7
+      },
+      rating: 4.5,
+      reviews: 25,
+      verified: true,
+      roomTypes: [
+        { type: 'single', price: 12000, availableRooms: 5 },
+        { type: 'double', price: 8000, availableRooms: 2 }
+      ],
       owner: 'owner-1',
       status: 'approved',
       isApproved: true,
@@ -155,8 +179,32 @@ const initializeDemoData = async () => {
       id: 'pg-2',
       name: 'Student Hub',
       description: 'Budget-friendly accommodation',
-      location: { city: 'Delhi', address: 'Lajpat Nagar, Delhi' },
-      price: 8000,
+      location: { 
+        city: 'Delhi', 
+        address: 'Lajpat Nagar, Delhi',
+        state: 'Delhi',
+        pincode: '110024',
+        coordinates: { latitude: 28.5665, longitude: 77.2431 }
+      },
+      price: { monthly: 8000, security: 4000 },
+      amenities: ['WiFi', 'Security', 'Parking'],
+      images: ['https://via.placeholder.com/400x300/28A745/FFFFFF?text=Student+Hub'],
+      contact: {
+        owner: 'Student Hub Owner',
+        phone: '9876543211',
+        email: 'studenthub@ghar.com'
+      },
+      availability: {
+        totalRooms: 15,
+        availableRooms: 12
+      },
+      rating: 4.2,
+      reviews: 18,
+      verified: true,
+      roomTypes: [
+        { type: 'triple', price: 8000, availableRooms: 8 },
+        { type: 'double', price: 10000, availableRooms: 4 }
+      ],
       owner: 'owner-1',
       status: 'pending',
       isApproved: false,

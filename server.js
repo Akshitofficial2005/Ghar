@@ -485,6 +485,68 @@ app.get('/api/admin/pgs', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
+// PG Approval endpoint
+app.put('/api/admin/pgs/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const pgId = req.params.id;
+    console.log('🔍 Approving PG:', pgId);
+    
+    const pgIndex = mockPGs.findIndex(pg => pg.id === pgId);
+    if (pgIndex === -1) {
+      return res.status(404).json({ success: false, message: 'PG not found' });
+    }
+    
+    // Update PG status to approved
+    mockPGs[pgIndex].status = 'approved';
+    mockPGs[pgIndex].isApproved = true;
+    mockPGs[pgIndex].isActive = true;
+    mockPGs[pgIndex].approvedAt = new Date().toISOString();
+    
+    console.log('✅ PG approved:', mockPGs[pgIndex].name);
+    
+    res.json({
+      success: true,
+      message: 'PG approved successfully',
+      pg: mockPGs[pgIndex]
+    });
+  } catch (error) {
+    console.error('PG approval error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// PG Rejection endpoint
+app.put('/api/admin/pgs/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const pgId = req.params.id;
+    const { reason } = req.body;
+    console.log('❌ Rejecting PG:', pgId, 'Reason:', reason);
+    
+    const pgIndex = mockPGs.findIndex(pg => pg.id === pgId);
+    if (pgIndex === -1) {
+      return res.status(404).json({ success: false, message: 'PG not found' });
+    }
+    
+    // Update PG status to rejected
+    mockPGs[pgIndex].status = 'rejected';
+    mockPGs[pgIndex].isApproved = false;
+    mockPGs[pgIndex].isActive = false;
+    mockPGs[pgIndex].rejectedAt = new Date().toISOString();
+    mockPGs[pgIndex].rejectionReason = reason || 'No reason provided';
+    
+    console.log('❌ PG rejected:', mockPGs[pgIndex].name);
+    
+    res.json({
+      success: true,
+      message: 'PG rejected successfully',
+      pg: mockPGs[pgIndex]
+    });
+  } catch (error) {
+    console.error('PG rejection error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.get('/api/admin/users', authMiddleware, adminMiddleware, (req, res) => {
   try {
     const { page = 1, limit = 10, role } = req.query;

@@ -3,11 +3,11 @@ const router = express.Router();
 const User = require('../models/User');
 const PG = require('../models/PG');
 const Booking = require('../models/Booking');
-const { authMiddleware, adminAuth } = require('../middleware/auth');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 // Apply auth middleware to all admin routes
 router.use(authMiddleware);
-router.use(adminAuth);
+router.use(adminMiddleware);
 
 // --- DASHBOARD ---
 router.get('/dashboard', async (req, res) => {
@@ -37,10 +37,64 @@ router.get('/dashboard', async (req, res) => {
 // --- PG MANAGEMENT ---
 router.get('/pgs', async (req, res) => {
     try {
-        const pgs = await PG.find().populate('owner', 'name email');
+        // Only return approved and active PGs for all users
+        const pgs = await PG.find({ isApproved: true, isActive: true }).populate('owner', 'name email');
         res.json({ pgs, total: pgs.length });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Create new PG
+router.post('/pgs', async (req, res) => {
+    try {
+        const {
+            name,
+            description,
+            owner,
+            location,
+            price,
+            totalRooms,
+            availableRooms,
+            amenities,
+            status,
+            images
+        } = req.body;
+
+        // Validate required fields and types
+        if (!name || typeof name !== 'string' || name.trim().length < 3) {
+            return res.status(400).json({ message: 'PG name is required and must be at least 3 characters.' });
+        }
+        if (!description || typeof description !== 'string' || description.trim().length < 10) {
+            return res.status(400).json({ message: 'Description is required and must be at least 10 characters.' });
+        }
+        if (!owner || typeof owner !== 'string') {
+            return res.status(400).json({ message: 'Owner is required.' });
+        }
+        if (!location || typeof location !== 'object' || !location.address || !location.city || !location.state || !location.pincode) {
+            return res.status(400).json({ message: 'Location must include address, city, state, and pincode.' });
+        }
+        if (!price || typeof price !== 'number' || price <= 0) {
+            return res.status(400).json({ message: 'Price must be a positive number.' });
+        }
+
+        const pg = await PG.create({
+            name: name.trim(),
+            description: description.trim(),
+            owner,
+            location,
+            price,
+            totalRooms: Number(totalRooms) || 0,
+            availableRooms: Number(availableRooms) || 0,
+            amenities: Array.isArray(amenities) ? amenities : [],
+            status: status || 'pending',
+            images: Array.isArray(images) ? images : [],
+            createdAt: new Date()
+        });
+        res.status(201).json({ message: 'PG created successfully', pg });
+    } catch (error) {
+        console.error('Error creating PG:', error);
+        res.status(500).json({ message: error.message || 'Server error while creating PG.' });
     }
 });
 

@@ -1,64 +1,32 @@
-# Ghar Backend API
+# Ghar Backend
 
-## Setup Instructions
+This is the backend server for the Ghar PG Booking Platform. It supports both in-memory data and MongoDB.
 
-### 1. Install Dependencies
-```bash
+## Setup
+
+1. Install dependencies:
+```
 npm install
 ```
 
-### 2. Environment Setup
-Copy `.env` file and update with your credentials:
-- MongoDB connection string
-- JWT secret key
-- Razorpay keys
-- Cloudinary credentials
-- Email configuration
-
-### 3. Database Setup
-```bash
-# Seed initial data
-node utils/seedData.js
+2. Create a `.env` file with:
+```
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+PORT=5001
 ```
 
-### 4. Start Server
-```bash
-# Development
-npm run dev
-
-# Production
+3. Start the server:
+```
 npm start
 ```
 
-## API Endpoints
+## MongoDB Support
 
-### Authentication
-- POST `/api/auth/register` - User registration
-- POST `/api/auth/login` - User login
-- POST `/api/auth/google` - Google OAuth
+The server will automatically use MongoDB if `MONGODB_URI` is provided in the environment variables. If MongoDB connection fails, it will fall back to in-memory data.
 
-### PGs
-- GET `/api/pgs` - Get all PGs with filters
-- GET `/api/pgs/:id` - Get PG by ID
-- POST `/api/pgs` - Create PG (Owner only)
-- PUT `/api/pgs/:id` - Update PG
-- DELETE `/api/pgs/:id` - Delete PG
+## Demo Accounts
 
-### Bookings
-- POST `/api/bookings` - Create booking
-- GET `/api/bookings` - Get user bookings
-- GET `/api/bookings/:id` - Get booking by ID
-- PUT `/api/bookings/:id/cancel` - Cancel booking
-
-### Payments
-- POST `/api/payments/create-order` - Create Razorpay order
-- POST `/api/payments/verify` - Verify payment
-- POST `/api/payments/webhook` - Razorpay webhook
-
-### File Upload
-- POST `/api/upload/image` - Upload single image
-- POST `/api/upload/images` - Upload multiple images
-
-## Default Credentials
-- Admin: admin@gharapp.com / admin123
-- Owner: owner@gharapp.com / owner123
+- Admin: admin@ghar.com / admin123
+- Owner: owner@ghar.com / owner123
+- User: user@demo.com / demo123

@@ -21,14 +21,15 @@ router.get('/', async (req, res) => {
     };
 
     if (city) {
-      filter.location = new RegExp(city, 'i');
+      filter['location.city'] = { $regex: city, $options: 'i' };
     }
 
     if (search) {
       filter.$or = [
-        { name: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { location: new RegExp(search, 'i') }
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { 'location.city': { $regex: search, $options: 'i' } },
+        { 'location.address': { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -36,7 +37,7 @@ router.get('/', async (req, res) => {
       const priceFilter = {};
       if (minPrice) priceFilter.$gte = parseInt(minPrice);
       if (maxPrice) priceFilter.$lte = parseInt(maxPrice);
-      filter.pricePerMonth = priceFilter;
+      filter['roomTypes.price'] = priceFilter;
     }
 
     const pageNum = parseInt(page);
@@ -117,27 +118,97 @@ router.post('/', async (req, res) => {
       rules
     } = req.body;
 
-    // Basic validation
-    if (!name || !location || !pricePerMonth) {
+    // Enhanced validation
+    const validationErrors = [];
+    
+    // Name validation - only characters allowed
+    if (!name || name.trim() === '') {
+      validationErrors.push('Name is required');
+    } else if (!/^[A-Za-z\s]+$/.test(name)) {
+      validationErrors.push('Name should contain only letters and spaces');
+    }
+    
+    // Location validation
+    if (!location || (typeof location === 'string' && location.trim() === '')) {
+      validationErrors.push('Location is required');
+    }
+    
+    // Price validation - only numbers allowed
+    if (!pricePerMonth) {
+      validationErrors.push('Price is required');
+    } else if (isNaN(Number(pricePerMonth)) || Number(pricePerMonth) <= 0) {
+      validationErrors.push('Price must be a valid positive number');
+    }
+    
+    // Contact number validation - exactly 10 digits
+    if (contactNumber) {
+      if (!/^\d{10}$/.test(contactNumber)) {
+        validationErrors.push('Contact number must be exactly 10 digits');
+      }
+    }
+    
+    if (validationErrors.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Name, location, and price are required'
+        message: 'Validation failed',
+        errors: validationErrors
       });
     }
 
-    // Create PG object - simplified structure
+    // Process location to match schema
+    let locationData = {};
+    if (typeof location === 'string') {
+      const parts = location.split(',');
+      locationData = {
+        address: location.trim(),
+        city: parts[0]?.trim() || 'Unknown',
+        state: parts[1]?.trim() || 'Unknown',
+        pincode: '000000'
+      };
+    } else if (typeof location === 'object') {
+      locationData = {
+        address: location.address || '',
+        city: location.city || 'Unknown',
+        state: location.state || 'Unknown',
+        pincode: location.pincode || '000000'
+      };
+    }
+
+    const normalizeAmenities = (input) => {
+      const toBool = (v) => Boolean(v);
+      const asArray = Array.isArray(input) ? input : [];
+      const asObject = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+
+      return {
+        wifi: asArray.includes('wifi') || toBool(asObject.wifi),
+        food: asArray.includes('food') || toBool(asObject.food),
+        parking: asArray.includes('parking') || toBool(asObject.parking),
+        gym: asArray.includes('gym') || toBool(asObject.gym),
+        ac: asArray.includes('ac') || toBool(asObject.ac),
+        laundry: asArray.includes('laundry') || toBool(asObject.laundry),
+        security: asArray.includes('security') || toBool(asObject.security),
+        powerBackup: asArray.includes('powerBackup') || toBool(asObject.powerBackup)
+      };
+    };
+
+    const normalizedAmenities = normalizeAmenities(amenities);
+
+    // Create PG object with proper schema structure
     const pgData = {
       name: name.trim(),
       description: description || '',
-      location: location.trim(),
-      pricePerMonth: Number(pricePerMonth),
-      totalRooms: Number(totalRooms) || 1,
-      availableRooms: Number(availableRooms) || 1,
-      amenities: amenities || [],
-      images: images || [],
-      contactNumber: contactNumber || '',
+      location: locationData,
+      roomTypes: [{
+        type: 'single',
+        price: Number(pricePerMonth),
+        deposit: Math.floor(Number(pricePerMonth) * 0.5),
+        totalRooms: Number(totalRooms) || 1,
+        availableRooms: Number(availableRooms) || 1,
+        amenities: Object.keys(normalizedAmenities).filter((key) => normalizedAmenities[key])
+      }],
+      amenities: normalizedAmenities,
+      images: images?.map(url => ({ url, publicId: '', isMain: false })) || [],
       rules: rules || [],
-      // owner: req.user?._id, // No owner for public PG creation
       isApproved: true, // Auto-approve for now
       isActive: true
     };
@@ -157,6 +228,26 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('=== PG CREATION ERROR ===');
     console.error('Error details:', error);
+    
+    // Check for validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    // Check for MongoDB connection issues
+    if (error.name === 'MongooseServerSelectionError') {
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection error. Please try again later.',
+        error: 'Database unavailable'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Failed to create PG listing',

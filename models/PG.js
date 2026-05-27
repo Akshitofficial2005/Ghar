@@ -167,4 +167,4 @@ pgSchema.methods.updateAvailability = function(roomType, date, count = 1) {
   throw new Error('Room not available');
 };
 
-module.exports = mongoose.model('PG', pgSchema);
+module.exports = mongoose.models.PG || mongoose.model('PG', pgSchema);

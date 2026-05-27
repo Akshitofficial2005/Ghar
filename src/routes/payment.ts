@@ -6,15 +6,33 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2023-10-16',
+    })
+  : null;
+
+const requireStripe = (res: Response) => {
+  if (!stripe) {
+    res.status(503).json({
+      status: 'error',
+      message: 'Payment gateway is not configured',
+    });
+    return false;
+  }
+
+  return true;
+};
 
 // @route   POST /api/payments/create-payment-intent
 // @desc    Create payment intent for booking
 // @access  Private
 router.post('/create-payment-intent', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!requireStripe(res)) {
+      return;
+    }
+
     const { bookingId } = req.body;
 
     if (!bookingId) {
@@ -67,6 +85,10 @@ router.post('/create-payment-intent', authenticate, async (req: AuthenticatedReq
 // @access  Private
 router.post('/confirm-payment', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!requireStripe(res)) {
+      return;
+    }
+
     const { paymentIntentId } = req.body;
 
     if (!paymentIntentId) {
@@ -109,6 +131,10 @@ router.post('/confirm-payment', authenticate, async (req: AuthenticatedRequest, 
 // @access  Public (but verified)
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
+    if (!requireStripe(res)) {
+      return;
+    }
+
     const sig = req.headers['stripe-signature'] as string;
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -167,6 +193,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: R
 // @access  Private (Admin only)
 router.post('/refund', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    if (!requireStripe(res)) {
+      return;
+    }
+
     if (req.user.role !== 'admin') {
       throw createError('Access denied. Admin role required.', 403);
     }

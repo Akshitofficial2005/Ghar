@@ -18,6 +18,7 @@ const PORT = process.env.PORT || 5001;
 let users = [];
 let mockPGs = [];
 let mockBookings = [];
+let pendingOtps = new Map();
 
 // Enhanced CORS configuration
 app.use(cors({
@@ -87,6 +88,8 @@ const authMiddleware = (req, res, next) => {
     res.status(401).json({ message: 'Invalid token.' });
   }
 };
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // Admin middleware
 const adminMiddleware = (req, res, next) => {
@@ -249,6 +252,154 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth routes
+app.post('/api/auth/register/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const existingUser = users.find(user => user.email === email);
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const otp = generateOTP();
+    pendingOtps.set(email.toLowerCase(), {
+      otp,
+      createdAt: Date.now()
+    });
+
+    console.log(`[OTP] Generated for ${email}: ${otp}`);
+
+    res.json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    console.error('OTP request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/auth/resend-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const pendingOtp = pendingOtps.get(email.toLowerCase());
+    if (!pendingOtp) {
+      return res.status(404).json({ message: 'OTP not requested' });
+    }
+
+    const otp = generateOTP();
+    pendingOtps.set(email.toLowerCase(), {
+      otp,
+      createdAt: Date.now()
+    });
+
+    console.log(`[OTP] Resent for ${email}: ${otp}`);
+
+    res.json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/auth/verify-email', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    const pendingOtp = pendingOtps.get(email.toLowerCase());
+    if (!pendingOtp) {
+      return res.status(400).json({ message: 'OTP expired or not requested' });
+    }
+
+    if (pendingOtp.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    pendingOtps.delete(email.toLowerCase());
+
+    const user = users.find(item => item.email === email);
+    if (user) {
+      user.isVerified = true;
+    }
+
+    res.json({ message: 'Email verified successfully' });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password, phone, role = 'user', otp } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    if (users.find(user => user.email === email)) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const pendingOtp = pendingOtps.get(email.toLowerCase());
+    if (pendingOtp) {
+      if (!otp) {
+        return res.status(400).json({ message: 'OTP is required' });
+      }
+
+      if (pendingOtp.otp !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+
+      pendingOtps.delete(email.toLowerCase());
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = {
+      id: `user-${Date.now()}`,
+      name,
+      email,
+      password: hashedPassword,
+      phone: phone || '',
+      role,
+      isVerified: true,
+      isActive: true,
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(user);
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified
+      }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -275,7 +426,8 @@ app.post('/api/auth/login', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isVerified: user.isVerified !== false
       }
     });
     
@@ -298,7 +450,8 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isVerified: user.isVerified !== false
       }
     });
   } catch (error) {

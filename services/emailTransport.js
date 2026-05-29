@@ -8,6 +8,35 @@ try {
 
 const isTruthy = value => Boolean(value) && value !== 'false' && value !== '0';
 
+const baseTransportOptions = {
+  family: 4,
+  connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT || 15000),
+  greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT || 15000),
+  socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT || 30000),
+};
+
+const createSmtpTransport = ({ host, port, secure, user, pass }) => (
+  nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    requireTLS: !secure,
+    tls: { servername: host },
+    ...baseTransportOptions,
+  })
+);
+
+const createGmailTransport = (user, pass) => (
+  createSmtpTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    user,
+    pass,
+  })
+);
+
 const getEmailConfig = () => {
   const host = process.env.EMAIL_HOST || process.env.SMTP_HOST;
   const port = Number(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587);
@@ -21,12 +50,7 @@ const getEmailConfig = () => {
   if (host && user && pass) {
     return {
       provider: 'smtp',
-      transporter: nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: { user, pass }
-      }),
+      transporter: createSmtpTransport({ host, port, secure, user, pass }),
       from,
     };
   }
@@ -34,13 +58,7 @@ const getEmailConfig = () => {
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     return {
       provider: 'gmail',
-      transporter: nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD
-        }
-      }),
+      transporter: createGmailTransport(process.env.GMAIL_USER, process.env.GMAIL_APP_PASSWORD),
       from: process.env.EMAIL_FROM || process.env.GMAIL_USER,
     };
   }

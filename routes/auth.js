@@ -78,7 +78,7 @@ router.post('/register/request-otp', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    if (!hasEmailConfig) {
+    if (!hasEmailConfig()) {
       return res.status(503).json({ message: 'Email service is not configured' });
     }
     
@@ -107,6 +107,7 @@ router.post('/register/request-otp', async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone, role = 'user', otp } = req.body;
+    const requireOtp = process.env.REQUIRE_REGISTRATION_OTP !== 'false';
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -114,22 +115,23 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
     
-    // Verify OTP
-    if (!otp) {
-      return res.status(400).json({ message: 'OTP is required' });
+    if (requireOtp) {
+      if (!otp) {
+        return res.status(400).json({ message: 'OTP is required' });
+      }
+
+      const otpRecord = await OTP.findOne({ email });
+      if (!otpRecord) {
+        return res.status(400).json({ message: 'OTP expired or not requested' });
+      }
+
+      if (otpRecord.otp !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+
+      // Delete OTP record
+      await OTP.findOneAndDelete({ email });
     }
-    
-    const otpRecord = await OTP.findOne({ email });
-    if (!otpRecord) {
-      return res.status(400).json({ message: 'OTP expired or not requested' });
-    }
-    
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-    
-    // Delete OTP record
-    await OTP.findOneAndDelete({ email });
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -161,7 +163,10 @@ router.post('/register', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
         role: user.role,
+        avatar: user.avatar || '',
+        createdAt: user.createdAt,
         isEmailVerified: user.isEmailVerified
       }
     });
@@ -190,7 +195,7 @@ router.post('/login', async (req, res) => {
     
     // Check if email is verified
     if (!user.isEmailVerified) {
-      if (!hasEmailConfig) {
+      if (!hasEmailConfig()) {
         return res.status(503).json({
           message: 'Email service is not configured',
           requiresVerification: true,
@@ -238,7 +243,10 @@ router.post('/login', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
         role: user.role,
+        avatar: user.avatar || '',
+        createdAt: user.createdAt,
         isEmailVerified: user.isEmailVerified
       }
     });

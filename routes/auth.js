@@ -17,10 +17,19 @@ const createEmailTransporter = () => {
   // Check for Gmail configuration first
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     return nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD
+      },
+      family: 4,
+      connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT || 15000),
+      greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT || 15000),
+      socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT || 30000),
+      tls: {
+        servername: 'smtp.gmail.com'
       }
     });
   }

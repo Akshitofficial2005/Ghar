@@ -1,12 +1,11 @@
 const nodemailer = require('nodemailer');
-const { getEmailTransporter, hasEmailConfig, getEmailFrom, getEmailProvider } = require('./emailTransport');
+const { getEmailTransporter, hasEmailConfig, getEmailFrom, getEmailProvider, getEmailConfig } = require('./emailTransport');
 const logger = require('../utils/logger');
 
-const transporter = getEmailTransporter();
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-async function sendWithRetry(mailOptions, attempts = 3) {
+async function sendWithRetry(transporter, mailOptions, attempts = 3) {
   let lastErr = null;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -29,36 +28,52 @@ const generateOTP = () => {
 
 // Send OTP email
 const sendOTPEmail = async (email, otp) => {
+  const mailOptions = {
+    from: getEmailFrom(),
+    to: email,
+    subject: 'Ghar App - Email Verification OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+        <h2 style="color: #4a4a4a;">Email Verification</h2>
+        <p>Thank you for registering with Ghar App. Please use the following OTP to verify your email address:</p>
+        <div style="background-color: #f5f5f5; padding: 10px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p>This OTP is valid for 10 minutes.</p>
+        <p>If you did not request this verification, please ignore this email.</p>
+        <p style="margin-top: 30px; font-size: 12px; color: #777;">
+          This is an automated email. Please do not reply to this message.
+        </p>
+      </div>
+    `
+  };
+
+  const transporter = getEmailTransporter();
   if (!transporter) {
     logger.error('Email configuration missing: set EMAIL_HOST/EMAIL_USER/EMAIL_PASS or SENDGRID_API_KEY');
     return false;
   }
 
   try {
-    const mailOptions = {
-      from: getEmailFrom(),
-      to: email,
-      subject: 'Ghar App - Email Verification OTP',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-          <h2 style="color: #4a4a4a;">Email Verification</h2>
-          <p>Thank you for registering with Ghar App. Please use the following OTP to verify your email address:</p>
-          <div style="background-color: #f5f5f5; padding: 10px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p>This OTP is valid for 10 minutes.</p>
-          <p>If you did not request this verification, please ignore this email.</p>
-          <p style="margin-top: 30px; font-size: 12px; color: #777;">
-            This is an automated email. Please do not reply to this message.
-          </p>
-        </div>
-      `
-    };
-
-    const info = await sendWithRetry(mailOptions, 3);
+    await sendWithRetry(transporter, mailOptions, 3);
     logger.info('OTP email sent via %s', getEmailProvider() || 'email');
     return true;
   } catch (error) {
+    logger.warn('Primary transporter failed: %o', error && error.message ? error.message : error);
+
+    // If primary wasn't SendGrid and we have a SendGrid config, try it as a fallback
+    try {
+      const cfg = getEmailConfig && getEmailConfig();
+      if (cfg && cfg.provider === 'sendgrid' && cfg.transporter) {
+        logger.info('Attempting SendGrid fallback for OTP email');
+        await cfg.transporter.sendMail(mailOptions);
+        logger.info('OTP email sent via sendgrid fallback');
+        return true;
+      }
+    } catch (sgErr) {
+      logger.error('SendGrid fallback failed: %o', sgErr);
+    }
+
     logger.error('Error sending email: %o', error);
     return false;
   }

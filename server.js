@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -19,6 +20,54 @@ let users = [];
 let mockPGs = [];
 let mockBookings = [];
 let pendingOtps = new Map();
+
+const createEmailTransporter = () => {
+  const user = process.env.GMAIL_USER || process.env.EMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASS;
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass }
+  });
+};
+
+const emailTransporter = createEmailTransporter();
+
+const sendOTPEmail = async (email, otp) => {
+  if (!emailTransporter) {
+    console.log(`[DEV MODE] OTP would be sent to: ${email}`);
+    console.log(`[DEV MODE] OTP code: ${otp}`);
+    return true;
+  }
+
+  const fromAddress = process.env.EMAIL_FROM || process.env.GMAIL_USER || process.env.EMAIL_USER;
+  const emailOptions = {
+    from: fromAddress,
+    to: email,
+    subject: 'Ghar App - Email Verification OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #3B82F6;">Verify Your Email</h2>
+        <p>Thank you for registering with Ghar App. Please use the following OTP to verify your email address:</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0;">${otp}</div>
+        <p>This OTP is valid for 10 minutes.</p>
+      </div>
+    `
+  };
+
+  try {
+    await emailTransporter.sendMail(emailOptions);
+    console.log(`OTP email sent to ${email} via Gmail`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send OTP email:', error);
+    return false;
+  }
+};
 
 // Enhanced CORS configuration
 app.use(cors({
@@ -271,7 +320,10 @@ app.post('/api/auth/register/request-otp', async (req, res) => {
       createdAt: Date.now()
     });
 
-    console.log(`[OTP] Generated for ${email}: ${otp}`);
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email' });
+    }
 
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {
@@ -299,7 +351,10 @@ app.post('/api/auth/resend-otp', async (req, res) => {
       createdAt: Date.now()
     });
 
-    console.log(`[OTP] Resent for ${email}: ${otp}`);
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email' });
+    }
 
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {

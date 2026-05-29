@@ -63,4 +63,4 @@ bookingSchema.index({ pgId: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ checkIn: 1, checkOut: 1 });
 
-module.exports = mongoose.model('Booking', bookingSchema);
+module.exports = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);

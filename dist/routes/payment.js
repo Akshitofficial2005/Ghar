@@ -9,11 +9,26 @@ const Booking_1 = require("../models/Booking");
 const auth_1 = require("../middleware/auth");
 const errorHandler_1 = require("../middleware/errorHandler");
 const router = express_1.default.Router();
-const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2023-10-16',
-});
+const stripe = process.env.STRIPE_SECRET_KEY
+    ? new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2023-10-16',
+    })
+    : null;
+const requireStripe = (res) => {
+    if (!stripe) {
+        res.status(503).json({
+            status: 'error',
+            message: 'Payment gateway is not configured',
+        });
+        return false;
+    }
+    return true;
+};
 router.post('/create-payment-intent', auth_1.authenticate, async (req, res, next) => {
     try {
+        if (!requireStripe(res)) {
+            return;
+        }
         const { bookingId } = req.body;
         if (!bookingId) {
             throw (0, errorHandler_1.createError)('Booking ID is required', 400);
@@ -54,6 +69,9 @@ router.post('/create-payment-intent', auth_1.authenticate, async (req, res, next
 });
 router.post('/confirm-payment', auth_1.authenticate, async (req, res, next) => {
     try {
+        if (!requireStripe(res)) {
+            return;
+        }
         const { paymentIntentId } = req.body;
         if (!paymentIntentId) {
             throw (0, errorHandler_1.createError)('Payment Intent ID is required', 400);
@@ -84,6 +102,9 @@ router.post('/confirm-payment', auth_1.authenticate, async (req, res, next) => {
 });
 router.post('/webhook', express_1.default.raw({ type: 'application/json' }), async (req, res, next) => {
     try {
+        if (!requireStripe(res)) {
+            return;
+        }
         const sig = req.headers['stripe-signature'];
         const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
         let event;
@@ -127,6 +148,9 @@ router.post('/webhook', express_1.default.raw({ type: 'application/json' }), asy
 });
 router.post('/refund', auth_1.authenticate, async (req, res, next) => {
     try {
+        if (!requireStripe(res)) {
+            return;
+        }
         if (req.user.role !== 'admin') {
             throw (0, errorHandler_1.createError)('Access denied. Admin role required.', 403);
         }

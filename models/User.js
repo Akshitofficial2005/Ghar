@@ -56,6 +56,10 @@ const userSchema = new mongoose.Schema({
       return !!this.googleId;
     }
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -93,4 +97,4 @@ userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ googleId: 1 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

@@ -8,6 +8,11 @@ const router = express.Router();
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { pgId, roomTypeId, checkIn, checkOut, guests } = req.body;
+    const userId = req.user?._id || req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authenticated user not found' });
+    }
 
     // Check if PG exists
     const pg = await PG.findById(pgId);
@@ -15,22 +20,39 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'PG not found' });
     }
 
-    // Find room type and calculate price
-    const roomType = pg.roomTypes.id(roomTypeId);
-    if (!roomType) {
-      return res.status(404).json({ message: 'Room type not found' });
+    // Find room type and calculate price with fallback for PGs that don't define roomTypes
+    const roomTypes = Array.isArray(pg.roomTypes) ? pg.roomTypes : [];
+    let roomType = null;
+
+    if (roomTypes.length > 0 && roomTypeId) {
+      roomType = typeof roomTypes.id === 'function'
+        ? roomTypes.id(roomTypeId)
+        : roomTypes.find(rt => rt._id?.toString() === roomTypeId);
+    }
+
+    if (!roomType && roomTypes.length > 0) {
+      roomType = roomTypes[0];
+    }
+
+    const resolvedNightlyPrice = roomType?.price
+      || pg?.price?.monthly
+      || pg?.pricePerMonth
+      || pg?.pricing?.basePrice;
+
+    if (!resolvedNightlyPrice || Number(resolvedNightlyPrice) <= 0) {
+      return res.status(400).json({ message: 'Unable to determine booking price for PG' });
     }
 
     // Calculate total amount
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
     const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
-    const totalAmount = roomType.price * nights;
+    const totalAmount = Number(resolvedNightlyPrice) * nights;
 
     const booking = new Booking({
-      userId: req.user.userId,
+      userId,
       pgId,
-      roomTypeId,
+      roomTypeId: roomType?._id || roomTypeId || null,
       checkIn: checkInDate,
       checkOut: checkOutDate,
       guests,
@@ -52,7 +74,8 @@ router.post('/', authMiddleware, async (req, res) => {
 // Get user bookings
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const bookings = await Booking.find({ userId: req.user.userId })
+    const userId = req.user?._id || req.user?.userId;
+    const bookings = await Booking.find({ userId })
       .populate('pgId', 'name location images')
       .sort({ createdAt: -1 });
 
@@ -74,7 +97,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    if (booking.userId._id.toString() !== req.user.userId && req.user.role !== 'admin') {
+    const userId = req.user?._id || req.user?.userId;
+    if (booking.userId._id.toString() !== userId.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
 

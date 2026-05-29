@@ -1,89 +1,28 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
-const { OAuth2Client } = require('google-auth-library');
+// Google OAuth removed
 const User = require('../models/User');
-const OTP = require('../models/OTP');
 const { authMiddleware } = require('../middleware/auth');
+const { getEmailTransporter, hasEmailConfig, getEmailFrom, getEmailProvider } = require('../services/emailTransport');
 
 const router = express.Router();
 
-// Google OAuth client
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Google OAuth removed: no client or validation
 
-// Email configuration
-const createEmailTransporter = () => {
-  // Check for Gmail configuration first
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    return nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
-      },
-      family: 4,
-      connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT || 15000),
-      greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT || 15000),
-      socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT || 30000),
-      tls: {
-        servername: 'smtp.gmail.com'
-      }
-    });
-  }
-  
-  // Fallback: no email sending (development mode)
-  return null;
-};
-
-const emailTransporter = createEmailTransporter();
-
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-const sendOTPEmail = async (email, otp) => {
-  if (!emailTransporter) {
-    console.log(`[DEV MODE] OTP would be sent to: ${email}`);
-    console.log(`[DEV MODE] OTP code: ${otp}`);
-    return true;
-  }
-
-  const emailOptions = {
-    from: process.env.EMAIL_FROM || 'noreply@gharapp.com',
-    to: email,
-    subject: 'Your Ghar App OTP Code',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #3B82F6;">Verify Your Email</h2>
-        <p>Your one-time password is:</p>
-        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0;">${otp}</div>
-        <p>This code expires in 10 minutes.</p>
-      </div>
-    `
-  };
-
-  try {
-    await emailTransporter.sendMail(emailOptions);
-    return true;
-  } catch (error) {
-    console.error('Failed to send OTP email:', error);
-    return false;
-  }
-};
+const emailTransporter = getEmailTransporter();
 
 // Email sending function
 const sendPasswordResetEmail = async (email, resetToken, userName) => {
   if (!emailTransporter) {
-    console.log(`[DEV MODE] Password reset email would be sent to: ${email}`);
-    console.log(`[DEV MODE] Reset link: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`);
-    return true;
+    console.error('Email configuration missing: set EMAIL_HOST/EMAIL_USER/EMAIL_PASS or GMAIL_USER/GMAIL_APP_PASSWORD');
+    return false;
   }
   
   const resetLink = `${process.env.FRONTEND_URL || 'https://gharfr.vercel.app'}/reset-password?token=${resetToken}`;
   
   const emailOptions = {
-    from: process.env.EMAIL_FROM || 'noreply@gharapp.com',
+    from: getEmailFrom() || 'noreply@gharapp.com',
     to: email,
     subject: 'Reset Your Ghar App Password',
     html: `
@@ -112,7 +51,7 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
   
   try {
     await emailTransporter.sendMail(emailOptions);
-    console.log(`Password reset email sent to: ${email}`);
+    console.log(`Password reset email sent via ${getEmailProvider() || 'email'} to: ${email}`);
     return true;
   } catch (error) {
     console.error('Failed to send email:', error);
@@ -120,7 +59,51 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
   }
 };
 
-// Register
+// Import OTP model and email service
+const OTP = require('../models/OTP');
+const { generateOTP, sendOTPEmail } = require('../services/emailService');
+
+// Request OTP for registration
+router.post('/register/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    if (!hasEmailConfig()) {
+      return res.status(503).json({ message: 'Email service is not configured' });
+    }
+    
+    // Generate OTP
+    const otp = generateOTP();
+    
+    // Save OTP to database (replace if exists)
+    await OTP.findOneAndDelete({ email });
+    await new OTP({ email, otp }).save();
+    
+    // Send OTP email
+    const emailSent = await sendOTPEmail(email, otp);
+    
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email' });
+    }
+    
+    res.json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    console.error('OTP request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Verify OTP and register user
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone, role = 'user', otp } = req.body;
@@ -131,7 +114,7 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
-
+    
     if (requireOtp) {
       if (!otp) {
         return res.status(400).json({ message: 'OTP is required' });
@@ -146,6 +129,7 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ message: 'Invalid OTP' });
       }
 
+      // Delete OTP record
       await OTP.findOneAndDelete({ email });
     }
 
@@ -160,7 +144,7 @@ router.post('/register', async (req, res) => {
       password: hashedPassword,
       phone,
       role,
-      isVerified: true
+      isEmailVerified: true
     });
 
     await user.save();
@@ -168,7 +152,7 @@ router.post('/register', async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
+      process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024',
       { expiresIn: '7d' } // Extended to 7 days
     );
 
@@ -179,43 +163,15 @@ router.post('/register', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
         role: user.role,
-        isVerified: user.isVerified
+        avatar: user.avatar || '',
+        createdAt: user.createdAt,
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Request OTP for registration
-router.post('/register/request-otp', async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    const otp = generateOTP();
-
-    await OTP.findOneAndDelete({ email });
-    await OTP.create({ email, otp });
-
-    const emailSent = await sendOTPEmail(email, otp);
-    if (!emailSent) {
-      return res.status(500).json({ message: 'Failed to send OTP email' });
-    }
-
-    res.json({ message: 'OTP sent to your email' });
-  } catch (error) {
-    console.error('OTP request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -236,6 +192,38 @@ router.post('/login', async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      if (!hasEmailConfig()) {
+        return res.status(503).json({
+          message: 'Email service is not configured',
+          requiresVerification: true,
+          email: user.email
+        });
+      }
+
+      // Generate new OTP for verification
+      const otp = generateOTP();
+      await OTP.findOneAndDelete({ email });
+      await new OTP({ email, otp }).save();
+      
+      // Send OTP email
+      const emailSent = await sendOTPEmail(email, otp);
+      if (!emailSent) {
+        return res.status(503).json({
+          message: 'Failed to send verification email',
+          requiresVerification: true,
+          email: user.email
+        });
+      }
+      
+      return res.status(403).json({ 
+        message: 'Email not verified', 
+        requiresVerification: true,
+        email: user.email
+      });
+    }
 
     // Update last login
     user.lastLogin = new Date();
@@ -244,7 +232,7 @@ router.post('/login', async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
+      process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024',
       { expiresIn: '7d' } // Extended to 7 days
     );
 
@@ -255,7 +243,11 @@ router.post('/login', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        phone: user.phone || '',
+        role: user.role,
+        avatar: user.avatar || '',
+        createdAt: user.createdAt,
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {
@@ -293,7 +285,7 @@ router.post('/forgot-password', async (req, res) => {
     // Generate reset token
     const resetToken = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
+      process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024',
       { expiresIn: '1h' }
     );
 
@@ -317,7 +309,7 @@ router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024');
     const user = await User.findById(decoded.userId);
     
     if (!user) {
@@ -336,94 +328,7 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// Google auth endpoint
-router.post('/google', async (req, res) => {
-  try {
-    const { credential } = req.body;
-    
-    if (!credential) {
-      return res.status(400).json({ error: 'Google credential is required' });
-    }
-
-    // Verify the Google token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name, picture } = payload;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email not provided by Google' });
-    }
-
-    // Check if user already exists
-    let user = await User.findOne({ 
-      $or: [
-        { email },
-        { googleId }
-      ]
-    });
-
-    if (user) {
-      // Update existing user with Google ID if not set
-      if (!user.googleId) {
-        user.googleId = googleId;
-        user.profilePicture = picture;
-        await user.save();
-      }
-    } else {
-      // Create new user
-      user = new User({
-        name,
-        email,
-        googleId,
-        profilePicture: picture,
-        role: 'user',
-        isActive: true,
-        phone: '', // Will be empty initially, user can update later
-        // No password needed for Google auth users
-        password: await bcrypt.hash(Math.random().toString(36), 10) // Random password as fallback
-      });
-
-      await user.save();
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user._id,
-        email: user.email,
-        role: user.role 
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Extended to 7 days for Google OAuth too
-    );
-
-    // Return user data (excluding password)
-    const userData = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      profilePicture: user.profilePicture,
-      isActive: user.isActive,
-      createdAt: user.createdAt
-    };
-
-    res.json({
-      message: 'Google authentication successful',
-      user: userData,
-      token
-    });
-
-  } catch (error) {
-    console.error('Google auth error:', error);
-    res.status(500).json({ error: 'Google authentication failed' });
-  }
-});
+// Google auth endpoint removed
 
 // Get user profile
 router.get('/profile', authMiddleware, async (req, res) => {
@@ -467,26 +372,31 @@ router.put('/update-role', authMiddleware, async (req, res) => {
 router.post('/resend-otp', async (req, res) => {
   try {
     const { email } = req.body;
-
+    
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
-
+    
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
+    
+    // Generate new OTP
     const otp = generateOTP();
-
+    
+    // Save OTP to database (replace if exists)
     await OTP.findOneAndDelete({ email });
-    await OTP.create({ email, otp });
-
+    await new OTP({ email, otp }).save();
+    
+    // Send OTP email
     const emailSent = await sendOTPEmail(email, otp);
+    
     if (!emailSent) {
       return res.status(500).json({ message: 'Failed to send OTP email' });
     }
-
+    
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {
     console.error('Resend OTP error:', error);
@@ -498,36 +408,41 @@ router.post('/resend-otp', async (req, res) => {
 router.post('/verify-email', async (req, res) => {
   try {
     const { email, otp } = req.body;
-
+    
     if (!email || !otp) {
       return res.status(400).json({ message: 'Email and OTP are required' });
     }
-
+    
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
+    
+    // Verify OTP
     const otpRecord = await OTP.findOne({ email });
     if (!otpRecord) {
       return res.status(400).json({ message: 'OTP expired or not requested' });
     }
-
+    
     if (otpRecord.otp !== otp) {
       return res.status(400).json({ message: 'Invalid OTP' });
     }
-
+    
+    // Delete OTP record
     await OTP.findOneAndDelete({ email });
-
-    user.isVerified = true;
+    
+    // Mark email as verified
+    user.isEmailVerified = true;
     await user.save();
-
+    
+    // Generate JWT
     const token = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || 'fallback_secret',
+      process.env.JWT_SECRET || 'ghar_super_secret_jwt_key_2024',
       { expiresIn: '7d' }
     );
-
+    
     res.json({
       message: 'Email verified successfully',
       token,
@@ -536,7 +451,7 @@ router.post('/verify-email', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
+const OTP = require('../models/OTP');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
@@ -29,6 +30,38 @@ const createEmailTransporter = () => {
 };
 
 const emailTransporter = createEmailTransporter();
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+const sendOTPEmail = async (email, otp) => {
+  if (!emailTransporter) {
+    console.log(`[DEV MODE] OTP would be sent to: ${email}`);
+    console.log(`[DEV MODE] OTP code: ${otp}`);
+    return true;
+  }
+
+  const emailOptions = {
+    from: process.env.EMAIL_FROM || 'noreply@gharapp.com',
+    to: email,
+    subject: 'Your Ghar App OTP Code',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #3B82F6;">Verify Your Email</h2>
+        <p>Your one-time password is:</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0;">${otp}</div>
+        <p>This code expires in 10 minutes.</p>
+      </div>
+    `
+  };
+
+  try {
+    await emailTransporter.sendMail(emailOptions);
+    return true;
+  } catch (error) {
+    console.error('Failed to send OTP email:', error);
+    return false;
+  }
+};
 
 // Email sending function
 const sendPasswordResetEmail = async (email, resetToken, userName) => {
@@ -81,12 +114,30 @@ const sendPasswordResetEmail = async (email, resetToken, userName) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone, role = 'user' } = req.body;
+    const { name, email, password, phone, role = 'user', otp } = req.body;
+    const requireOtp = process.env.REQUIRE_REGISTRATION_OTP !== 'false';
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
+    }
+
+    if (requireOtp) {
+      if (!otp) {
+        return res.status(400).json({ message: 'OTP is required' });
+      }
+
+      const otpRecord = await OTP.findOne({ email });
+      if (!otpRecord) {
+        return res.status(400).json({ message: 'OTP expired or not requested' });
+      }
+
+      if (otpRecord.otp !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+
+      await OTP.findOneAndDelete({ email });
     }
 
     // Hash password
@@ -99,7 +150,8 @@ router.post('/register', async (req, res) => {
       email,
       password: hashedPassword,
       phone,
-      role
+      role,
+      isVerified: true
     });
 
     await user.save();
@@ -118,11 +170,43 @@ router.post('/register', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isVerified: user.isVerified
       }
     });
   } catch (error) {
     console.error('Register error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Request OTP for registration
+router.post('/register/request-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const otp = generateOTP();
+
+    await OTP.findOneAndDelete({ email });
+    await OTP.create({ email, otp });
+
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email' });
+    }
+
+    res.json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    console.error('OTP request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -366,6 +450,88 @@ router.put('/update-role', authMiddleware, async (req, res) => {
     res.json({ message: 'Role updated successfully', user });
   } catch (error) {
     console.error('Role update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Resend OTP
+router.post('/resend-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const otp = generateOTP();
+
+    await OTP.findOneAndDelete({ email });
+    await OTP.create({ email, otp });
+
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send OTP email' });
+    }
+
+    res.json({ message: 'OTP sent to your email' });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Verify OTP for existing users
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const otpRecord = await OTP.findOne({ email });
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'OTP expired or not requested' });
+    }
+
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    await OTP.findOneAndDelete({ email });
+
+    user.isVerified = true;
+    await user.save();
+
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Email verified successfully',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified
+      }
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
